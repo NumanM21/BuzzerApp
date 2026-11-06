@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/backend/" />
+  <Folder Name="/backend/src/">
+    <Project Path="backend/src/BuzzerApp.Api/BuzzerApp.Api.csproj" />
+    <Project Path="backend/src/BuzzerApp.Core/BuzzerApp.Core.csproj" />
+  </Folder>
+  <Folder Name="/backend/tests/">
+    <Project Path="backend/tests/BuzzerApp.Core.Tests/BuzzerApp.Core.Tests.csproj" />
+  </Folder>
+</Solution>
