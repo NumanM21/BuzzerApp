@@ -3,6 +3,7 @@
   <Folder Name="/backend/src/">
     <Project Path="backend/src/BuzzerApp.Api/BuzzerApp.Api.csproj" />
     <Project Path="backend/src/BuzzerApp.Core/BuzzerApp.Core.csproj" />
+    <Project Path="backend/src/BuzzerApp.Infrastructure/BuzzerApp.Infrastructure.csproj" />
   </Folder>
   <Folder Name="/backend/tests/">
     <Project Path="backend/tests/BuzzerApp.Core.Tests/BuzzerApp.Core.Tests.csproj" />
