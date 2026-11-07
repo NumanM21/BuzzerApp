@@ -12,6 +12,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\BuzzerApp.Core\BuzzerApp.Core.csproj" />
+    <ProjectReference Include="..\BuzzerApp.Infrastructure\BuzzerApp.Infrastructure.csproj" />
   </ItemGroup>
 
 </Project>
