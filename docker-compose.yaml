@@ -1,16 +1,17 @@
-version: '3.8'
-
 services:
   postgres:
     image: postgres:16-alpine
     container_name: buzzer-postgres
-    restart: always
+    restart: unless-stopped
     environment:
       POSTGRES_USER: buzzer_user
-      POSTGRES_PASSWORD: supersecretpassword
+      # Comes from the git-ignored .env next to this file (copy .env.example). The repo is public.
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
       POSTGRES_DB: buzzer_db
     ports:
-      - "5432:5432"
+      # Loopback only, so the database isn't reachable from the LAN. Host port 5434 because local
+      # PostgreSQL instances already use 5432 and 5433 on the dev machine; change it if yours are free.
+      - "127.0.0.1:5434:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
 
