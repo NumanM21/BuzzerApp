@@ -5,7 +5,9 @@
   <ItemGroup>
     <!-- EF Core, Npgsql and the EF tools must move together; keep them in one place. -->
     <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.14" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.14" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Tools" Version="10.0.14" />
+    <PackageVersion Include="Microsoft.Extensions.Identity.Core" Version="10.0.14" />
     <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
     <!-- Tests -->
     <PackageVersion Include="coverlet.collector" Version="10.1.0" />
