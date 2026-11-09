@@ -429,3 +429,5 @@ FodyWeavers.xsd
 
 # Rider related?
 .idea/
+# Archive exports contain real names
+buzzer-archive-*.json
