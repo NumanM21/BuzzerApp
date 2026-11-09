@@ -2,11 +2,11 @@
 
 > **Audience:** AI workers implementing one step each (usually in a fresh session).
 > Adds implementation detail to `docs/PlanMVP.md` §10 Milestone B. **PlanMVP wins on product decisions; this file wins on implementation detail.**
-> Written 9 Nov 2026.
+> Written 9 Nov 2026. **B0 is done and merged into `main` (see the B0 section for what it actually produced).** Start at B1.
 
 | Step | Branch | Suggested model | Why |
 |---|---|---|---|
-| B0 | `backend-phase-1` (existing) | Sonnet | Mechanical cleanup + CI |
+| B0 | `backend-b0-cleanup` — **DONE, merged** | Sonnet | Mechanical cleanup + CI |
 | B1 | `feature/b1-core-round` | **Opus** (or Sonnet + Opus review) | State machine + concurrency; its API shape fixes B6 |
 | B2 | `feature/b2-persistence` | Sonnet | Standard EF Core; traps listed below |
 | B3 | `feature/b3-auth` | Sonnet + review | Security-sensitive |
@@ -22,26 +22,28 @@
 
 - Read `CLAUDE.md` and `docs/PlanMVP.md` first, then the brief for your step below.
 - The developer's prompt saying "do B<n>" counts as "go". Don't stop to propose a file list unless something in the brief is unclear or looks wrong. If it does, say so and propose an alternative. Never silently deviate.
-- Branching: B0 is done on `backend-phase-1` and merged into `main` first, so CI exists there. Every later step branches `feature/b<n>-<short-name>` off the latest `origin/main`. Make small commits, one logical change each. Don't push or open a PR unless asked.
+- Branching: B0 is merged, so `main` has CI and the `backend` + `frontend` checks are required by the `main` ruleset (PR, 1 approval, rebase merge only). Every step branches `feature/b<n>-<short-name>` off the latest `origin/main` (`git fetch`, then branch from `origin/main`). A step's PR can't merge until both checks are green. Make small commits, one logical change each. Don't push or open a PR unless asked.
 - **Done** = `dotnet build BuzzerApp.slnx` + `dotnet test BuzzerApp.slnx` pass with **zero warnings** (warnings are errors from B0 on), plus the step's own **Check**. Finish with a short summary of what was built and why (a few paragraphs).
-- Package versions: don't guess. Use the latest stable version (`dotnet package search <id> --exact-match`, or `dotnet add package <id>` without a version), and add it to `Directory.Packages.props` (central package management, from B0 on).
+- Package versions: don't guess. Look up the latest stable version (e.g. `curl -s https://api.nuget.org/v3-flatcontainer/<lowercase-id>/index.json`; the last stable entry is the newest), add a `<PackageVersion>` to the root `Directory.Packages.props`, and reference the package in the csproj **without** a `Version` attribute (central package management is on, so a `Version` there is an error). Confirm it restores and builds.
+- **.NET 10 only.** `global.json` pins SDK `10.0.100` (`rollForward: latestFeature`) so the 8.0 SDK on the dev machine is never used. Don't add `net8.0` targets or .NET 8 workarounds.
+- Build settings (`net10.0`, nullable, implicit usings, `TreatWarningsAsErrors`) live in the root `Directory.Build.props`. Don't repeat them in csproj files.
 - Use UTC everywhere: `TimeProvider.GetUtcNow()` (inject `TimeProvider`, never `DateTime.Now`). Npgsql rejects a `DateTimeOffset` with a non-zero offset for `timestamptz` columns.
 - Comments explain *why*, not *what*.
 
 ---
 
-## B0 — Hygiene + CI
+## B0 — Hygiene + CI — DONE (merged into `main`)
 
-- Delete `backend/src/BuzzerApp.Core/Class1.cs`, `backend/src/BuzzerApp.Infrastructure/Class1.cs` and `backend/tests/BuzzerApp.Core.Tests/UnitTest1.cs`.
-- `Api/Program.cs`: remove the weather sample and the `WeatherForecast` record. Keep `AddOpenApi` / `MapOpenApi`. Point `BuzzerApp.Api.http` at `GET {{host}}/openapi/v1.json` as a placeholder.
-- Add a **`global.json`** at the root: `"sdk": { "version": "10.0.100", "rollForward": "latestFeature" }`. The dev machine also has the 8.0 SDK, and local should match CI.
-- Add a **`Directory.Build.props`** at the root with `TargetFramework net10.0`, `Nullable enable`, `ImplicitUsings enable` and `TreatWarningsAsErrors true`. Remove those properties from the 4 csproj files.
-- Add a **`Directory.Packages.props`** at the root (`ManagePackageVersionsCentrally`) and move every package version into it. Why: EF Core, Npgsql, EF Design and EF Tools must stay on matching versions across 3 projects.
-- Move the test project to **xUnit v3**: `xunit.v3`, `xunit.runner.visualstudio` (3.x) and `Microsoft.NET.Test.Sdk`. Keep `coverlet.collector`, and add `<OutputType>Exe</OutputType>` if the package doesn't set it. Stay on the VSTest runner (no Microsoft.Testing.Platform config in `global.json`). Add one trivial placeholder test so `dotnet test` finds something; B1 deletes it.
-- Add `.github/workflows/ci.yml` from PlanMVP §10. First look up the current major version of each action (`gh api repos/actions/checkout/releases/latest --jq .tag_name`, and the same for `actions/setup-dotnet` and `actions/setup-node`). In setup-dotnet, use `global-json-file: global.json` instead of `dotnet-version`.
-- Add `buzzer-archive-*.json` to `.gitignore`, because archive exports contain real names.
-- Commit the doc changes already in the working tree (`docs/BackendSteps.md`, `docs/PlanMVP.md`, `CLAUDE.md`) as their own commit.
-- **Check:** build and test pass. `cd frontend && npm ci && npm run lint && npm run build` pass. Then stop and tell the developer to push `backend-phase-1`, open the PR, and mark the `backend` and `frontend` jobs as required status checks in the `main` ruleset once CI has run once.
+Kept for reference; **do not redo.** What exists now, including where it differs from the original brief:
+
+- Template files (`Class1.cs` ×2, `UnitTest1.cs`) and the weather sample are gone. `Program.cs` keeps only `AddOpenApi` / `MapOpenApi` / `UseHttpsRedirection`. `BuzzerApp.Api.http` has a placeholder `GET {{host}}/openapi/v1.json` (variable `@host = http://localhost:5283`).
+- Root `global.json`, `Directory.Build.props`, `Directory.Packages.props` exist as described in the shared rules. The four csproj files contain no `TargetFramework`, `Nullable`, `ImplicitUsings` or package versions.
+- **Tests use xunit v3 on the VSTest runner:** `xunit.v3` **3.2.2** + `xunit.runner.visualstudio` **3.1.5** + `Microsoft.NET.Test.Sdk` + `coverlet.collector`, with `<OutputType>Exe</OutputType>` in the test csproj. **Deviation from "latest":** `xunit.v3` 4.x and runner 4.x make the .NET 10 SDK demand the Microsoft.Testing.Platform runner (`dotnet test` fails with "Testing with VSTest target is no longer supported"). Staying on 3.x avoids touching `global.json`. Don't bump these without also opting into MTP deliberately.
+- `backend/tests/BuzzerApp.Core.Tests/PlaceholderTests.cs` holds one trivial test. **B1 deletes it.**
+- `.github/workflows/ci.yml`: two parallel jobs on ubuntu-latest, run on PRs into `main` and pushes to `main`. `backend`: `actions/checkout@v7`, `actions/setup-dotnet@v6` with `global-json-file: global.json`, then `dotnet test BuzzerApp.slnx --configuration Release`. `frontend`: `actions/checkout@v7`, `actions/setup-node@v7` (Node 24, npm cache), `npm ci`, `npm run lint`, `npm run build`. The `npx vitest run` step is commented out until F3.
+- `.gitignore` excludes `buzzer-archive-*.json`.
+- The `main` ruleset (PR required, 1 approval, rebase-only, required checks `backend` and `frontend`, branch up to date) is set up on GitHub. **Job names `backend` / `frontend` in `ci.yml` must not be renamed** without updating the ruleset, or PRs hang waiting for a check that never reports.
+- Not covered yet (later steps): `docker-compose.yaml` fixes and tool manifest (B2), User Secrets (B2).
 
 ---
 
@@ -49,7 +51,7 @@
 
 Files (namespace `BuzzerApp.Core.Rounds`, folder `Core/Rounds/`): `RoundPhase`, `TeamTurnStatus`, `RosterEntry`, `RoundSettings`, `RoundResult`, `RoundErrors`, `PublicRoundSnapshot` + `TeamQueueEntry`, `AdminRoundSnapshot` + `BuzzEntry`, `LockedRoundRecord` (+ `LockedBuzz`), `EndedRoundRecord` (+ `TeamOutcomeEntry`, `RoundTeamOutcome { Current, Passed, Unreached }`), `BuzzRound`.
 Scoring (`Core/Scoring/`): `ScoreDirection { Add, Remove }`, `ScoreAmountResult`, `ScoreMath`, `Ranking`.
-Tests: `Core.Tests/Rounds/BuzzRoundTests.cs`, `BuzzRoundConcurrencyTests.cs`, `Core.Tests/Scoring/ScoreMathTests.cs`, `RankingTests.cs`. Add `Microsoft.Extensions.TimeProvider.Testing` to the **test project only**. Core itself needs no packages (`TimeProvider` is in the BCL).
+Tests: `Core.Tests/Rounds/BuzzRoundTests.cs`, `BuzzRoundConcurrencyTests.cs`, `Core.Tests/Scoring/ScoreMathTests.cs`, `RankingTests.cs`. Delete `PlaceholderTests.cs` (B0's stand-in). Add `Microsoft.Extensions.TimeProvider.Testing` to the **test project only**: a `<PackageVersion>` in `Directory.Packages.props` and a version-less `<PackageReference>` in `BuzzerApp.Core.Tests.csproj`. Core itself needs no packages (`TimeProvider` is in the BCL), so `BuzzerApp.Core.csproj` stays an empty `<Project Sdk="Microsoft.NET.Sdk">` apart from what you add under the rules. Warnings are errors, so XML-doc-less public types are fine but unused variables, nullable issues etc. will fail the build.
 
 Rules, on top of PlanMVP §7.3:
 - **`BuzzRound` owns one private `System.Threading.Lock`.** Every public member takes it, including the snapshot getters and `Take…Record`, so the class is thread-safe by itself. The Core concurrency test depends on this, and B6 relies on it.
