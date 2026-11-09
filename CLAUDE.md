@@ -2,7 +2,7 @@
 
 Live buzzer + scoreboard web app for a yearly family games night. .NET 10 backend, React 19 + TS + Vite + Fluent UI v9 frontend.
 
-**The plan is `docs/PlanMVP.md`. Read it before any task.** Decisions §3, open questions §4, domain model §7, API contract §8, theming §9, steps §10. 2026 team design: `images/team-logos/` (six `<team>-face.png` icons + `group-participating-teams.png` reference).
+**The plan is `docs/PlanMVP.md`. Read it before any task.** Backend steps B0–B8: also read their brief in `docs/BackendSteps.md` (it wins on implementation detail). Decisions §3, open questions §4, domain model §7, API contract §8, theming §9, steps §10. 2026 team design: `images/team-logos/` (six `<team>-face.png` icons + `group-participating-teams.png` reference).
 
 ## Working rules
 - Only work on the step the developer names (e.g. "B1"). Propose the file list and any decisions first; wait for "go".
