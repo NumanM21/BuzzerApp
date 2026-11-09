@@ -2,12 +2,12 @@
 
 > **Audience:** AI workers implementing one step each (usually in a fresh session).
 > Adds implementation detail to `docs/PlanMVP.md` §10 Milestone B. **PlanMVP wins on product decisions; this file wins on implementation detail.**
-> Written 9 Nov 2026. **B0 is done and merged into `main` (see the B0 section for what it actually produced).** Start at B1.
+> Written 9 Nov 2026. **B0 and B1 are done and merged into `main` (each DONE section records what was actually produced).** Start at B2.
 
 | Step | Branch | Suggested model | Why |
 |---|---|---|---|
 | B0 | `backend-b0-cleanup` — **DONE, merged** | Sonnet | Mechanical cleanup + CI |
-| B1 | `feature/b1-core-round` | **Opus** (or Sonnet + Opus review) | State machine + concurrency; its API shape fixes B6 |
+| B1 | `backend-b1-core` — **DONE, merged** | Opus | State machine + concurrency; its API shape fixes B6 |
 | B2 | `feature/b2-persistence` | Sonnet | Standard EF Core; traps listed below |
 | B3 | `feature/b3-auth` | Sonnet + review | Security-sensitive |
 | B4 | `feature/b4-teams-players` | Sonnet | CRUD |
@@ -24,6 +24,7 @@
 - The developer's prompt saying "do B<n>" counts as "go". Don't stop to propose a file list unless something in the brief is unclear or looks wrong. If it does, say so and propose an alternative. Never silently deviate.
 - Branching: B0 is merged, so `main` has CI and the `backend` + `frontend` checks are required by the `main` ruleset (PR, 1 approval, rebase merge only). Every step branches `feature/b<n>-<short-name>` off the latest `origin/main` (`git fetch`, then branch from `origin/main`). A step's PR can't merge until both checks are green. Make small commits, one logical change each. Don't push or open a PR unless asked.
 - **Done** = `dotnet build BuzzerApp.slnx` + `dotnet test BuzzerApp.slnx` pass with **zero warnings** (warnings are errors from B0 on), plus the step's own **Check**. Finish with a short summary of what was built and why (a few paragraphs).
+- **Mark the step done in this file as your last commit** (no need to be asked). In the table, change the branch cell to `<branch> — **DONE**`. Add ` — DONE` to the step's section heading, add a short "Kept for reference; **do not redo.**" note listing what exists now, and record every deviation from the brief and anything later steps must know. If something you learned affects a later step, add it to that step's brief too. Update the "Start at B<n>" line at the top. Commit it as `Mark B<n> done in BackendSteps`.
 - Package versions: don't guess. Look up the latest stable version (e.g. `curl -s https://api.nuget.org/v3-flatcontainer/<lowercase-id>/index.json`; the last stable entry is the newest), add a `<PackageVersion>` to the root `Directory.Packages.props`, and reference the package in the csproj **without** a `Version` attribute (central package management is on, so a `Version` there is an error). Confirm it restores and builds.
 - **.NET 10 only.** `global.json` pins SDK `10.0.100` (`rollForward: latestFeature`) so the 8.0 SDK on the dev machine is never used. Don't add `net8.0` targets or .NET 8 workarounds.
 - Build settings (`net10.0`, nullable, implicit usings, `TreatWarningsAsErrors`) live in the root `Directory.Build.props`. Don't repeat them in csproj files.
@@ -47,7 +48,24 @@ Kept for reference; **do not redo.** What exists now, including where it differs
 
 ---
 
-## B1 — Core round engine
+## B1 — Core round engine — DONE (merged into `main`)
+
+Kept for reference; **do not redo.** What exists now, including where it differs from the original brief:
+
+- Everything in the file list below exists. `PlaceholderTests.cs` is deleted. `Microsoft.Extensions.TimeProvider.Testing` **10.11.0** is in the test project only; `BuzzerApp.Core.csproj` still has no package references.
+- **`RosterEntry(int PlayerId, string DisplayName, int TeamId, string TeamName)`**: the field is `DisplayName`, not `PlayerName`. Snapshots built from it go to every player, so a real name must never be put in it (B6).
+- **Extra file `Scoring/ScoreErrors.cs`**: stable codes `score.amountNotPositive`, `score.multiplierOutOfRange`, `score.invalidDirection`, `score.overflow`. An undefined `ScoreDirection` value is rejected (enums from JSON aren't guaranteed to be defined).
+- `RoundResult` has `Ok(changed = true)` / `Fail(error, changed = false)` helpers. A buzz at/after `WindowEndsAt` returns **`Success = false, Error = round.windowClosed, Changed = true`**: the buzz failed but the round locked, so B6 must still persist and broadcast. Treat `Changed`, not `Success`, as the trigger.
+- `Reset()` while Idle returns `Success = true, Changed = false` (no Version bump). `NextTeam()` in Exhausted returns `round.notLocked`.
+- `LockedBuzz.TeamQueuePosition` is set only on the buzz that queued its team (`CountedForTeam = true`); later teammate buzzes have null.
+- `TakeLockedRecord()` / `TakeEndedRecord()` are backed by **queues**, not single slots: if a caller is late, a later round can't overwrite an untaken record. Each record is still returned exactly once, oldest first.
+- `AdminRoundSnapshot` **repeats** the public fields instead of inheriting from `PublicRoundSnapshot`. SignalR serializes the runtime type, so inheritance could leak buzzes to players. Keep it that way.
+- `RoundSettings` is validated in the `BuzzRound` constructor (`GraceWindow >= 0`, `MaxRecordedBuzzes >= 0`; `ArgumentOutOfRangeException` otherwise).
+- `RoundTeamOutcome` (Core/Rounds) mirrors B2's `Domain.TeamOutcome` (Current/Passed/Unreached); B6 maps one to the other.
+- 90 tests. The concurrency tests were checked by removing the lock: 5 of 6 then fail.
+
+Original brief:
+
 
 Files (namespace `BuzzerApp.Core.Rounds`, folder `Core/Rounds/`): `RoundPhase`, `TeamTurnStatus`, `RosterEntry`, `RoundSettings`, `RoundResult`, `RoundErrors`, `PublicRoundSnapshot` + `TeamQueueEntry`, `AdminRoundSnapshot` + `BuzzEntry`, `LockedRoundRecord` (+ `LockedBuzz`), `EndedRoundRecord` (+ `TeamOutcomeEntry`, `RoundTeamOutcome { Current, Passed, Unreached }`), `BuzzRound`.
 Scoring (`Core/Scoring/`): `ScoreDirection { Add, Remove }`, `ScoreAmountResult`, `ScoreMath`, `Ranking`.
@@ -179,6 +197,8 @@ Rules, on top of PlanMVP §7.3:
   - On lock: insert `Round` + its `BuzzRecord`s.
   - On end: set `EndedAt` and each counted BuzzRecord's `Outcome` from the team outcomes.
   - Why a queue: a Reset straight after a lock must never update rows that aren't inserted yet, and buzz latency must never wait on the DB.
+  - **Take and enqueue under one guard** (from B1): `BuzzRound` hands each record out exactly once, but "take" and "write to the channel" are two steps. If thread A takes a locked record and thread B then runs Reset, takes the ended record and writes it first, the ended record reaches the worker before the round exists. Do "`TakeLockedRecord()` → `TakeEndedRecord()` → write both to the channel" inside one lock/semaphore (e.g. the broadcast semaphore), locked before ended, and loop each `Take…` until null.
+  - Trigger on `RoundResult.Changed`, not `Success` (a late buzz fails but locks the round).
   - Log DB errors and continue; never throw them into the game.
 - **`Realtime/RoundClock`** (`BackgroundService`): `PeriodicTimer(100 ms)` → `RoundService.TickAsync()`. That calls `Tick()`; if it returns true, enqueue the locked record and broadcast. Wrap each iteration in try/catch + log so the clock never dies.
 - **`Realtime/HubGameNotifier : IGameNotifier`** sends `TeamsChanged` / `ScoresChanged` to All and replaces `NullGameNotifier`.
