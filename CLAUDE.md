@@ -10,6 +10,7 @@ Live buzzer + scoreboard web app for a yearly family games night. .NET 10 backen
 - After each step, summarise briefly what was built and why (the developer wants to understand it).
 - Comments explain *why*, not *what*.
 - Feature branch per step, small commits, never commit to `main`, never commit secrets or archive exports.
+- No Claude attribution in commits or PRs: no `Co-Authored-By` trailer, no "Generated with Claude Code" line (also turned off in `.claude/settings.json`).
 
 ## Layout
 - `BuzzerApp.slnx` (repo root)
