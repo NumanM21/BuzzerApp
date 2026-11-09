@@ -2,8 +2,8 @@
 
 > **Audience:** AI coding assistants (Claude Code) and the developer.
 > **Purpose:** build a working, demo-able MVP fast, on foundations that can grow over several yearly events.
-> `docs/PLAN.md` is the older, learning-focused plan. Keep it for reference; **this file wins where they disagree**.
-> Last updated: 9 Nov 2026 (v2.2: entities in Core/Domain confirmed; lock file and `.gitignore` fixed; individual team icons added; team colours confirmed from the icon files). Status: Phase 0 done — start at B0.
+> `../OriginalFullPlan.md` (outside the repo) is the older, learning-focused plan. Keep it for reference; **this file wins where they disagree**.
+> Last updated: 9 Nov 2026 (v2.3: Q4 resolved (dark); backend step briefs added in `docs/BackendSteps.md`; round snapshots get `Version`, `TakeEndedRecord()` added. v2.2: entities in Core/Domain confirmed; lock file and `.gitignore` fixed; individual team icons added; team colours confirmed from the icon files). Status: Phase 0 done — start at B0.
 
 ---
 
@@ -50,11 +50,11 @@ A read-only **Display** (projector) screen is optional (§11, O0). Until then th
 BuzzerApp/                              ← repo root (GitHub, public)
 ├─ BuzzerApp.slnx                       ← solution at the ROOT
 ├─ docker-compose.yaml                  ← local PostgreSQL 16 (needs fixes, step B2)
-├─ images/team logos/                   ← 2026 design source files (note the space in the folder name)
+├─ images/team-logos/                   ← 2026 design source files
 │  ├─ <team>-face.png ×6                ← 1512×1200 pixel-art faces on a solid team-colour background (no transparency)
 │  ├─ all-team-faces.png                ← all six faces together
 │  └─ group-participating-teams.png     ← design reference: six team cards with names
-├─ docs/PLAN.md                         ← old plan (keep)
+├─ docs/BackendSteps.md                 ← implementation briefs for B0–B8
 ├─ backend/
 │  ├─ src/BuzzerApp.Api/                ← Minimal API template; still has weather sample; refs Core + Infrastructure
 │  ├─ src/BuzzerApp.Core/               ← class library; only Class1.cs; no package refs (keep it that way)
@@ -94,7 +94,7 @@ GitHub rules (set by developer): PRs required into `main`, 1 approval, rebase me
 | D13 | Roster timing | The roster (who can buzz, on which team) is captured at **Begin**. Late joiners and moved players take part from the **next** round | Keeps a running round consistent |
 | D14 | Concurrency | Single server instance; round state guarded by one `lock`; persistent data in the DB | Simplest correct design |
 | D15 | Events | Data is scoped to an **`Event`** (one per year). One **active** event. MVP seeds it from config | Yearly reuse without mixing data |
-| D16 | Teams 2026 | **Six fixed teams**, seeded from config: Rage Quitters (red), Pay To Win (yellow), Cheat Codes (green), Smurfs (blue), AFK Allstars (purple), RNG Lovers (pink). Each has `ColorKey` + `IconKey` | Set by the event design (`images/team logos/`) |
+| D16 | Teams 2026 | **Six fixed teams**, seeded from config: Rage Quitters (red), Pay To Win (yellow), Cheat Codes (green), Smurfs (blue), AFK Allstars (purple), RNG Lovers (pink). Each has `ColorKey` + `IconKey` | Set by the event design (`images/team-logos/`) |
 | D17 | Team editing | Admins: rename, create, delete (delete blocked with `409` if the team has players **or** score rows). Team colour/icon are **not editable in the MVP** (seeded) | Design is fixed for 2026; accidental deletes prevented |
 | D18 | Sign-in | **Register:** join code + real name + display name + 4-digit PIN + team. **Sign in:** join code + **real name** + PIN. Real and display names unique per event, case-insensitive | Real names are stable and memorable; display names can change freely |
 | D19 | Name visibility | **Display name** shown everywhere. **Real name** visible to admins only (and to the player themselves) | So hosts know who is who |
@@ -119,9 +119,9 @@ GitHub rules (set by developer): PRs required into `main`, 1 approval, rebase me
 
 | # | Question | Default if unanswered | Needed by |
 |---|---|---|---|
-| Q4 | Theme mode for 2026: dark (better on a projector, more "arcade cabinet") or light? | Dark | F1 |
+| — | None open | | |
 
-**Resolved 9 Nov 2026:** Q1 entity location → Core/Domain (D3). Q2 icons → individual PNGs in `images/team logos/` (§9.3). Q3 colours → read from the icon files' backgrounds (§9.3).
+**Resolved 9 Nov 2026:** Q4 theme mode → **dark** for the MVP; support both light and dark later. Q1 entity location → Core/Domain (D3). Q2 icons → individual PNGs in `images/team-logos/` (§9.3). Q3 colours → read from the icon files' backgrounds (§9.3).
 **Resolved 8 Nov 2026:** team/player score roll-up → separate (D25); real name purpose → admin identification + sign-in (D18, D19); UI library → Fluent UI v9 (D30); avatars → six fixed team icons (D16); late join → allowed (D21); delete team with players → blocked (D17).
 
 ---
@@ -281,13 +281,14 @@ public sealed class BuzzRound
     public PublicRoundSnapshot GetPublicSnapshot();
     public AdminRoundSnapshot GetAdminSnapshot();
     public LockedRoundRecord? TakeLockedRecord();                       // once after locking, for persistence (D28)
+    public EndedRoundRecord? TakeEndedRecord();                         // once after Reset ends a locked round: EndedAt + team outcomes
 }
 ```
 
 **`Buzz(playerId)` rules:** inside the lock; read `now` from `TimeProvider`. (1) If `Open` and the window has passed → lock now, then reject. (2) Reject if not `Open`. (3) Reject if the player isn't in the roster. (4) Ignore a repeat buzz from the same player (success, `Changed = false`). (5) Record the buzz (sequence, offset from first buzz) up to `MaxRecordedBuzzes`. (6) If the team isn't queued, queue it, credited to this player; the first queued buzz sets `WindowEndsAt = now + GraceWindow`. (7) If every roster team is queued → lock. (8) On lock: first entry → `Current`, set `CurrentSince = now`.
 
 **Snapshots** (immutable records, built inside the lock, collections copied)
-- `PublicRoundSnapshot`: `RoundId`, `Phase`, `TeamQueue[] { Position, TeamId, TeamName, BuzzedByDisplayName, Status }`, `CurrentTeamId?`, `WindowEndsAt?`, `ServerNow`.
+- `PublicRoundSnapshot`: `Version` (increments on every change; clients ignore older snapshots), `RoundId`, `Phase`, `TeamQueue[] { Position, TeamId, TeamName, BuzzedByDisplayName, Status }`, `CurrentTeamId?`, `WindowEndsAt?`, `ServerNow`.
 - `AdminRoundSnapshot`: public + `Buzzes[] { Sequence, PlayerId, DisplayName, TeamId, TeamName, OffsetMs, CountedForTeam }` + `CurrentSince?`.
 
 **`ScoreMath`** (pure): `SignedAmount(amount, multiplier, direction)`; validates `amount > 0`, `1 ≤ multiplier ≤ 100`, checked arithmetic.
@@ -371,7 +372,7 @@ Every successful write in 8.3–8.5 sends `TeamsChanged` and/or `ScoresChanged`.
 | server → admins | `AdminRoundUpdated` | group `admins` | `AdminRoundSnapshot` |
 | server → all | `TeamsChanged`, `ScoresChanged` | everyone | none (clients refetch) |
 
-`BeginRound` loads the roster (players with a team in the active event) via a scoped `DbContext` (create a scope with `IServiceScopeFactory`; never inject `DbContext` into a singleton). When a round locks (from `Buzz` or `Tick`), persist `Round` + `BuzzRecord`s via `TakeLockedRecord()`. On `NextTeam`/`Reset`, update outcomes.
+`BeginRound` loads the roster (players with a team in the active event) via a scoped `DbContext` (create a scope with `IServiceScopeFactory`; never inject `DbContext` into a singleton). When a round locks (from `Buzz` or `Tick`), persist `Round` + `BuzzRecord`s via `TakeLockedRecord()`. On `Reset`, set `EndedAt` + outcomes via `TakeEndedRecord()`. Persistence runs through one ordered background queue (see `docs/BackendSteps.md` B6).
 
 ---
 
@@ -414,7 +415,7 @@ export interface ThemePack {
 
 ### 9.3 Pack `arcade-2026` (retro, not cyberpunk)
 - **Mood:** 80s/8-bit arcade cabinet. Flat solid colours, square corners, chunky pixel borders, **hard** drop shadows (no blur), optional faint scanlines. **No** neon glow, gradients, chrome or glitch effects.
-- **Mode:** dark (Q4). Near-black page, dark panels.
+- **Mode:** dark (Q4, resolved). Near-black page, dark panels. Light mode is a later addition (the `mode` field in the contract already allows it).
 - **Neutrals from the artwork:** ink `#111111`, off-white `#F2F2F2`. Use these for the page/text extremes so UI and icons match.
 - **Fonts:** `Press Start 2P` for headings, buttons and scores (zero-padded, e.g. `00120`); `VT323` or the system font for body text (Press Start 2P is hard to read in sentences). Self-host via `@fontsource/*` so nothing depends on Google's CDN on event day.
 - **Fluent overrides:** all `borderRadius*` tokens → `0`; `fontFamilyBase` → body font; shadows → hard offset.
@@ -429,7 +430,7 @@ export interface ThemePack {
   | purple | AFK Allstars | `#9B5DE5` |
   | pink | RNG Lovers | `#E84A8A` |
 
-- **Icons:** copy `images/team logos/<iconKey>-face.png` into `packs/arcade-2026/icons/<iconKey>.png` (iconKeys: `rage-quitters`, `pay-to-win`, `cheat-codes`, `smurfs`, `afk-allstars`, `rng-lovers`) and import them in the pack so Vite fingerprints them. The source files stay in `images/` as design masters. Each icon is a **tile**: the face on a solid team-colour background (not transparent), aspect ratio 1.26:1. Show it in a fixed box with `object-fit: cover` (the face is centred, so the edge crop only removes background). The sources are high-resolution, so normal (smooth) downscaling is fine. Transparent versions are not needed for the MVP.
+- **Icons:** copy `images/team-logos/<iconKey>-face.png` into `packs/arcade-2026/icons/<iconKey>.png` (iconKeys: `rage-quitters`, `pay-to-win`, `cheat-codes`, `smurfs`, `afk-allstars`, `rng-lovers`) and import them in the pack so Vite fingerprints them. The source files stay in `images/` as design masters. Each icon is a **tile**: the face on a solid team-colour background (not transparent), aspect ratio 1.26:1. Show it in a fixed box with `object-fit: cover` (the face is centred, so the edge crop only removes background). The sources are high-resolution, so normal (smooth) downscaling is fine. Transparent versions are not needed for the MVP.
 - **Colour clash:** the six team colours cover almost the whole hue wheel, so red/amber/green **status** colours would be confused with teams. The buzzer therefore uses the **player's own team colour** when ready, and shows other states by **label, brightness and animation** (e.g. "YOUR TEAM'S UP!" blinking; "#2 IN LINE" dimmed; "OUT" greyed). Always text + visual, never colour alone.
 
 ### 9.4 Team card (shared component)
@@ -442,6 +443,8 @@ Border in the team colour (pack `border.width`), icon top-left, team name, membe
 Target: **MVP usable by 29 Nov**, rehearsal first week of December, then optional features. One step ≈ one branch ≈ one PR.
 
 ### Milestone B — Backend (8–15 Nov)
+
+Implementation detail per step (files, gotchas, checks, suggested model): **`docs/BackendSteps.md`**. Branching: B0 on `backend-phase-1` → PR to `main` first (so CI exists); then `feature/b<n>-…` per step.
 
 | Step | Do | Done when |
 |---|---|---|
@@ -497,7 +500,7 @@ jobs:
 | Step | Do | Done when |
 |---|---|---|
 | **F0** Foundations | Install Fluent UI v9 (`@fluentui/react-components`, `@fluentui/react-icons`), `react-router`, `@tanstack/react-query`, `@microsoft/signalr`, Vitest. Vite dev proxy: `/api` and `/hubs` → `http://localhost:5283` (`ws: true` for `/hubs`). Folder structure below. Remove template content. Theme system §9.1–9.2 with the `default` pack and `/dev/theme` preview | App shell renders with the default pack; lint/build pass |
-| **F1** Arcade pack | Resolve Q4. `packs/arcade-2026` per §9.3: brand ramp, overrides, fonts, palette, icons (copied from `images/team logos/`), effects | `/dev/theme` shows all six team cards and every buzzer state in the arcade style |
+| **F1** Arcade pack | Dark mode (Q4). `packs/arcade-2026` per §9.3: brand ramp, overrides, fonts, palette, icons (copied from `images/team-logos/`), effects | `/dev/theme` shows all six team cards and every buzzer state in the arcade style |
 | **F2** API layer | `src/api/client.ts` (JSON, `credentials: 'include'`, ProblemDetails → typed error), `types.ts` from §8, one hook per endpoint | Used by the join screen |
 | **F3** Realtime | `GameConnectionProvider` (one connection, `withAutomaticReconnect()`, reconnect on `visibilitychange`, StrictMode-safe), `TeamsChanged`/`ScoresChanged` → `invalidateQueries`. Pure `getBuzzerState` + Vitest tests. Enable Vitest in CI | Two tabs stay in sync; tests green in CI |
 | **F4** Register / Sign in | `/join?code=XXXX` with two tabs: **New player** (real name, display name, PIN, team picker showing team cards) and **Sign in** (real name, PIN). Route guards. Players → `/play`, admins → `/admin` | All error cases handled |
