@@ -1,6 +1,7 @@
-@BuzzerApp.Api_HostAddress = http://localhost:5283
+@host = http://localhost:5283
 
-GET {{BuzzerApp.Api_HostAddress}}/weatherforecast/
+# Placeholder until real endpoints exist (B3+)
+GET {{host}}/openapi/v1.json
 Accept: application/json
 
 ###
