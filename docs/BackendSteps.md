@@ -2,13 +2,13 @@
 
 > **Audience:** AI workers implementing one step each (usually in a fresh session).
 > Adds implementation detail to `docs/PlanMVP.md` §10 Milestone B. **PlanMVP wins on product decisions; this file wins on implementation detail.**
-> Written 9 Nov 2026. **B0 and B1 are done and merged into `main` (each DONE section records what was actually produced).** Start at B2.
+> Written 9 Nov 2026. **B0 and B1 are done and merged into `main`; B2 is done on branch `backend-b2` (each DONE section records what was actually produced).** Start at B3.
 
 | Step | Branch | Suggested model | Why |
 |---|---|---|---|
 | B0 | `backend-b0-cleanup` — **DONE, merged** | Sonnet | Mechanical cleanup + CI |
 | B1 | `backend-b1-core` — **DONE, merged** | Opus | State machine + concurrency; its API shape fixes B6 |
-| B2 | `feature/b2-persistence` | Sonnet | Standard EF Core; traps listed below |
+| B2 | `backend-b2` — **DONE** | Sonnet | Standard EF Core; traps listed below |
 | B3 | `feature/b3-auth` | Sonnet + review | Security-sensitive |
 | B4 | `feature/b4-teams-players` | Sonnet | CRUD |
 | B5 | `feature/b5-scores` | Sonnet | CRUD + `ScoreMath` |
@@ -89,7 +89,24 @@ Rules, on top of PlanMVP §7.3:
 
 ---
 
-## B2 — Domain + persistence
+## B2 — Domain + persistence — DONE
+
+Kept for reference; **do not redo.** What exists now, including where it differs from the original brief:
+
+- **Core:** `Domain/` (`Event`, `Team`, `Player`, `ScoreAdjustment`, `Round`, `BuzzRecord`, `EventArchive`, `PlayerRole`, `TeamOutcome`, `NameNormalizer`) and `Security/IPinHasher` (+ `PinVerifyResult`). Core still has zero package references. `Team` and `Player` have a public constructor (which calls the name setters) plus a private parameterless one for EF; `Rename` / `SetRealName` / `SetDisplayName` throw `ArgumentException` on blank input (length rules 2–20 / 2–24 are still B3's API validation). `Player.PinHash`, `Role` and `TeamId` are plain public setters: B3 sets the hash after construction (`IPinHasher.Hash` needs the `Player`), B4 sets `Role` / `TeamId` for promote and move. 7 new tests in `Core.Tests/Domain/NameTests.cs` (97 total).
+- **Infrastructure:** `Persistence/AppDbContext` + 7 configurations (internal classes, found by `ApplyConfigurationsFromAssembly`), `Security/PinHasher`, `Seeding/{EventSeedOptions, AdminSeedOptions, EventSeeder, DatabaseInitializer}`, `DependencyInjection.AddInfrastructure(connectionString)` (also registers `TimeProvider.System` with `TryAdd`). Extra indexes beyond the brief: `ScoreAdjustment (EventId, TeamId)` and `(EventId, PlayerId)` for the SUM queries, `Round.EventId`, unique `BuzzRecord (RoundId, Sequence)`. String max lengths: names/display names 100 (the 2–20 / 2–24 limits are enforced by the API, with room for case-mapping changes), keys 50, `PinHash` 256, `Reason` 200.
+- **Seeder:** `IOptions<EventSeedOptions>` + `IOptions<List<AdminSeedOptions>>`. When creating the event it deactivates any other active event with an `ExecuteUpdate` **inside the same transaction** before the insert (the filtered unique index is checked per statement). Join-code lookup is an exact match on the trimmed code. Admins are seeded into the event whose join code is configured.
+- **Api:** `Common/OptionsSetup.AddAppOptions` binds and validates `Event`, `Admins` and `Round` (`RoundSettings` from Core, ready for B6) with `ValidateOnStart`. Missing `ConnectionStrings:BuzzerDb` throws at startup with the `user-secrets` command in the message; a missing `Event:JoinCode` fails the same way. `Program.cs` calls `DatabaseInitializer.InitializeDatabaseAsync(app.Services, applyMigrations: app.Environment.IsDevelopment())` right after `Build()`. `Microsoft.EntityFrameworkCore.Design` 10.0.14 is in Api; `appsettings.json` holds the non-secret `Event` values and `Round:GraceWindow`.
+- **Tooling:** the tool manifest is **`dotnet-tools.json` at the repo root** (this SDK puts it there, not in `.config/`); `dotnet tool restore` finds it. `dotnet-ef` 10.0.14. Migration `InitialCreate` is in `Infrastructure/Persistence/Migrations`.
+- **Package versions:** `Microsoft.EntityFrameworkCore.Design` and `Microsoft.Extensions.Identity.Core` **10.0.14**, same as the other EF packages.
+- **Deviation, branch name:** worked on `backend-b2` (already created by the developer) instead of `feature/b2-persistence`.
+- **Deviation, docker-compose host port is `5434`, not 5432/5433.** The dev machine has PostgreSQL on 5432 (a Windows service and another container) and another process on 5433, so compose binds `127.0.0.1:5434:5432`. The container port is still 5432. Connection strings use `Port=5434`. Other machines can change the left-hand port freely.
+- **Local setup the developer does once** (nothing below is committed): copy `.env.example` to `.env` and set `POSTGRES_PASSWORD`; then `dotnet user-secrets set` for `ConnectionStrings:BuzzerDb` (`Host=localhost;Port=5434;Database=buzzer_db;Username=buzzer_user;Password=<same>`), `Event:JoinCode`, and `Admins:0:RealName` / `DisplayName` / `Pin`. The B2 session set **placeholder dev values**: join code `DEV-2026`, admin real name `Dev Admin`, display name `Admin`, PIN `1234`. Change them by deleting the admin row (or `docker compose down -v`) and updating the secrets, since the seeder never resets an existing admin's PIN.
+- **Checked:** `docker compose up -d` + `dotnet ef database update` create all 7 tables; `dotnet run` seeded 1 event, 6 teams and 1 admin; a second run changed nothing; a team renamed in the DB survived a restart; the check constraint, the one-active-event index and the team-name unique index all reject bad rows; a blank `Event:JoinCode` fails at startup with a clear message.
+- **For B3:** `Player.NormalizedRealName` / `NormalizedDisplayName` are the lookup columns; use `NameNormalizer.Normalize` on input. `IPinHasher` is registered as a singleton. The registration 23505 catch should expect the index names `IX_Players_EventId_NormalizedRealName` and `IX_Players_EventId_NormalizedDisplayName` if you want to say which name clashed.
+
+Original brief:
+
 
 **Core (`Core/Domain/`)**
 - Entities from PlanMVP §7.1 as POCOs (no EF attributes), with navigations: `Event.Teams`, `Event.Players`, `Team.Players`, `Round.Buzzes`. Enums: `PlayerRole { Player, Admin }` and `TeamOutcome { Current, Passed, Unreached }` (`BuzzRecord.Outcome`).
