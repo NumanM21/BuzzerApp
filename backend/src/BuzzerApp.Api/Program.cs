@@ -28,15 +28,14 @@ builder.Services.AddAppAuth(builder.Environment);
 builder.Services.AddAppRateLimiting(builder.Configuration);
 builder.Services.AddSingleton<SignInThrottle>();
 builder.Services.AddSingleton<PinDecoy>();
-// B6 replaces this with the SignalR notifier.
-builder.Services.AddSingleton<IGameNotifier, NullGameNotifier>();
+builder.Services.AddRealtime();
 builder.Services.AddProblemDetails();
 
 // By default Development makes a bad request (missing or malformed body) throw, which UseExceptionHandler then
 // reports as a 500, while Production answers 400. Turning it off keeps both environments identical.
 builder.Services.Configure<RouteHandlerOptions>(o => o.ThrowOnBadRequest = false);
 
-// Enums go out as "admin" / "add" rather than numbers; B6 configures the same converter for SignalR.
+// Enums go out as "admin" / "add" rather than numbers; AddRealtime configures the same converter for SignalR.
 builder.Services.ConfigureHttpJsonOptions(o =>
     o.SerializerOptions.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.CamelCase)));
 
@@ -69,6 +68,7 @@ app.MapSessionEndpoints();
 app.MapTeamEndpoints();
 app.MapPlayerEndpoints();
 app.MapScoreEndpoints();
+app.MapRealtime();
 
 app.Run();
 

@@ -9,10 +9,3 @@ public interface IGameNotifier
     Task TeamsChangedAsync();
     Task ScoresChangedAsync();
 }
-
-/// <summary>Stand-in until B6 replaces it with the SignalR implementation.</summary>
-public sealed class NullGameNotifier : IGameNotifier
-{
-    public Task TeamsChangedAsync() => Task.CompletedTask;
-    public Task ScoresChangedAsync() => Task.CompletedTask;
-}
