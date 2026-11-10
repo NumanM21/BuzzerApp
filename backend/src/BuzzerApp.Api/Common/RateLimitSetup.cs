@@ -10,10 +10,13 @@ public static class RateLimitPolicies
 public static class RateLimitSetup
 {
     // Generous on purpose (D24): the whole venue shares one public IP, and ~40 people register within minutes.
-    private const int PerIpPermitLimit = 30;
+    private const int DefaultPerIpPermitLimit = 30;
 
-    public static IServiceCollection AddAppRateLimiting(this IServiceCollection services)
+    public static IServiceCollection AddAppRateLimiting(this IServiceCollection services, IConfiguration config)
     {
+        // Configurable only so tests (which all share one IP) can raise it; production uses the default.
+        var perIpPermitLimit = config.GetValue("RateLimiting:JoinCodePerMinute", DefaultPerIpPermitLimit);
+
         services.AddRateLimiter(options =>
         {
             options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
@@ -33,7 +36,7 @@ public static class RateLimitSetup
                     ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown",
                     _ => new FixedWindowRateLimiterOptions
                     {
-                        PermitLimit = PerIpPermitLimit,
+                        PermitLimit = perIpPermitLimit,
                         Window = TimeSpan.FromMinutes(1),
                         QueueLimit = 0,
                     }));
