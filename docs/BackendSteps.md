@@ -2,7 +2,7 @@
 
 > **Audience:** AI workers implementing one step each (usually in a fresh session).
 > Adds implementation detail to `docs/PlanMVP.md` §10 Milestone B. **PlanMVP wins on product decisions; this file wins on implementation detail.**
-> Written 9 Nov 2026. **B0 and B1 are done and merged into `main`; B2 is done on branch `backend-b2`, B3 on `backend-b3-auth`, B4 on `backend-b4` and B5 on `backend-b5` (each DONE section records what was actually produced).** Start at B6.
+> Written 9 Nov 2026. **B0 and B1 are done and merged into `main`; B2 is done on branch `backend-b2`, B3 on `backend-b3-auth`, B4 on `backend-b4`, B5 on `backend-b5` and B6 on `backend-b6` (each DONE section records what was actually produced).** Start at B7.
 
 | Step | Branch | Suggested model | Why |
 |---|---|---|---|
@@ -12,7 +12,7 @@
 | B3 | `backend-b3-auth` — **DONE** | Sonnet + review | Security-sensitive |
 | B4 | `backend-b4` — **DONE** | Sonnet | CRUD |
 | B5 | `backend-b5` — **DONE** | Sonnet | CRUD + `ScoreMath` |
-| B6 | `backend-b6-realtime` | **Opus** (or Sonnet + Opus review) | Singleton + clock + SignalR + ordered persistence; bugs only show up under timing |
+| B6 | `backend-b6` — **DONE** | **Opus** (or Sonnet + Opus review) | Singleton + clock + SignalR + ordered persistence; bugs only show up under timing |
 | B7 | `backend-b7-archive` | Sonnet | Pure builder + 2 endpoints |
 | B8 | `backend-b8-hosting` | Sonnet | Static file hosting |
 | B9 | `backend-b9-review` | **Opus or Fable** | Whole-backend re-review + end-to-end walkthrough against a throwaway "UAT" database |
@@ -288,7 +288,30 @@ Original brief:
 
 ---
 
-## B6 — Realtime
+## B6 — Realtime — DONE
+
+Kept for reference; **do not redo.** What exists now, including where it differs from the original brief:
+
+- **Api `Realtime/`:** `IGameClient` (typed hub client: `RoundUpdated`, `AdminRoundUpdated`, `TeamsChanged`, `ScoresChanged`; these method names are the SignalR event names) + `GameGroups.Admins = "admins"`, `GameHub` (`Hub<IGameClient>`, `[Authorize]`, `GameHub.Path = "/hubs/game"`), `RoundService`, `RoundClock`, `RoundPersistenceQueue` (+ `LockedRoundWork(EventId, Record)` / `EndedRoundWork(Record)`), `RoundPersistenceWorker`, `HubGameNotifier`, `RealtimeSetup` (`AddRealtime()` / `MapRealtime()`, called from `Program.cs`). `NullGameNotifier` is deleted. Core is unchanged.
+- **Common:** `PrincipalClaims` (`GetPlayerId()`, `GetEventId()`, `IsAdmin()` on `ClaimsPrincipal`) in `CurrentUser.cs`; `CurrentUser` uses them and so does the hub. `OptionsSetup` also validates `Round:MaxRecordedBuzzes >= 0` (the `BuzzRound` constructor would throw otherwise).
+- **Hub:** on connect an admin joins `admins` **before** the snapshots are sent; everyone gets `RoundUpdated`, admins also `AdminRoundUpdated`. `Buzz()` (`Player` role) and `BeginRound()` / `NextTeam()` / `ResetRound()` (`Admin` role) take no arguments and return `RoundResult` (`{ success, error, changed }`). Begin uses the admin's `event_id` claim, Buzz the player id claim. A role failure reaches the client as a `HubException` ("…unauthorized"); an anonymous connection gets 401 at negotiate.
+- **Deviation, take-and-enqueue guard:** the brief's version (take + enqueue inside the broadcast semaphore) still has a race: thread T finds no locked record, then another thread locks **and** resets the round, then T takes the ended record and queues it before the round's insert. `RoundService` instead holds one `System.Threading.Lock` (`_changeGate`) around **the `BuzzRound` call itself plus** draining both `Take…Record` queues (locked first) into the channel, so records enter the channel in exactly the order the round produced them. Broadcasting then happens outside that lock, under the `SemaphoreSlim` with the snapshots taken inside it, as briefed. The extra lock costs nothing: `BuzzRound` already serialises every call.
+- **Persistence:** the worker is the channel's only reader and opens a scope per item. Locked → insert `Round` + `BuzzRecord`s added in `Sequence` order (ids rise with the sequence; tested). Ended → set `EndedAt`, then each counted buzz's `Outcome` by a team-id lookup; a missing round is logged and skipped. Errors are logged and the worker continues. On shutdown it saves what is already queued.
+- **Clock:** `PeriodicTimer(100 ms, TimeProvider)` (`RoundClock.Interval`), so a fake `TimeProvider` drives it in tests; each tick is wrapped in try/catch + log.
+- **Failures never reach the game or the REST caller:** a failed broadcast is logged (the round has already changed); `HubGameNotifier` logs a failed `TeamsChanged` / `ScoresChanged` instead of turning an already-saved write into a 500 (a retried score adjustment would be a second ledger row).
+- **Api tests:** 20 new (277 Api tests total, 112 Core). `Realtime/GameHubTests` (anonymous 401, on-connect snapshots and the public wire format for a player and an admin signed in through the real API, role checks, `Buzz` takes no arguments, REST writes reach clients as `TeamsChanged` / `ScoresChanged`) and `Realtime/RoundFlowTests` (one buzz locks after the grace window through the clock alone, over 2/6/13 teams; every team buzzing locks at once with queue and outcomes saved, over several team counts and `NextTeam` counts including Exhausted; Reset before lock saves nothing; empty roster; a late joiner buzzes from the next round only; racing buzzes / ticks / resets leave every saved round complete). Helpers in `Infrastructure/GameHost.cs`:
+  - `GameHost.Start(factory)`: a host of its own (same database) with a `FakeTimeProvider`, so each test gets a fresh `RoundService` and drives the grace window and the clock by advancing time. No `Thread.Sleep`; the only real-time waits are timeouts that bound a failing test and polling for the background worker (`factory.EventuallyAsync`).
+  - `factory.CreateRoundEventAsync(teams, playersPerTeam)`: an **inactive** event of the test's own, so the roster holds exactly its teams. `host.CookieFor(player)` mints a genuine auth cookie with that host's cookie handler (sign-in only accepts the active event's join code). The real register / sign-in cookie path is covered by the `GameHubTests` connect tests.
+  - `ConnectGameAsync(cookie)` connects with `Microsoft.AspNetCore.SignalR.Client` (10.0.14, test project only) over WebSockets through the test server; `GameClient` records every message as `JsonElement`; `BarrierAsync()` round-trips a non-existent method so "nothing else arrived" can be asserted.
+- **Mutation-checked:** removing `RoundClock` fails the three "locks with no further input" tests; sending `AdminRoundUpdated` to everyone, or adding every connection to `admins`, fails the "players never get the admin snapshot" assertions. **Not mutation-checkable:** the `_changeGate` ordering guard. Moving the drain back into the broadcast semaphore still passed the racing test three runs out of three, because the interleaving it prevents is too narrow to force without test hooks. The guard rests on the reasoning above; B9 should re-read it.
+- **Check:** done as integration tests against the Testcontainers PostgreSQL, as the brief allows (no throwaway console client and nothing run against the dev database). The live console walkthrough is B9's. Also run with `Event:Teams` set to 3 and then 8 teams: all green. The hub can't be called from the `.http` file, so B6 added no requests there.
+- **Determinism sweep (B1–B6):** B1–B5 re-checked (every `ToListAsync`, `Select`, `GroupBy`, `Dictionary` and `HashSet` in `Api/Features` and `Common`): no new findings; every list that reaches a response still ends in an `Id` tiebreaker or is dictionary *lookup* only. B6: the roster is sorted `TeamId`, `PlayerId` (the first version projected into `RosterEntry` before sorting, which EF can't translate; the tests caught it); snapshots and persistence records come only from `BuzzRound`'s ordered `_queue` / `_buzzes` lists; buzz rows are inserted and read back by `Sequence`; outcomes are matched by team-id lookup; concurrent broadcasts are ordered by the semaphore, with `Version` as the client-side backstop (tests assert each connection sees versions strictly rise).
+- **Known limits (accepted):** one live round per server, broadcast to every connection (one active event, D14). A player promoted mid-session keeps the `Player` claim and can still call `Buzz`, but the roster holds only `Player`-role players, so from the next round on that buzz is `round.unknownPlayer`. A team deleted between lock and save (only possible if its players were moved away mid-round) fails that round's insert on the FK; it is logged.
+- **Deviation, branch name:** `backend-b6` (already created by the developer), not `backend-b6-realtime`.
+- **For B7:** only rounds that locked are ever saved, so `roundsPlayed` = rounds of the event (`LockedAt` is always set; filtering on it is still correct). `totalBuzzes` counts every recorded buzz, including teammates' uncounted ones, and at most `Round:MaxRecordedBuzzes` (100) per round.
+- **For B8:** the hub is mapped at `/hubs/game`; the `/hubs/**` 404 catch-all must not shadow it.
+
+Original brief:
 
 - **`Realtime/GameHub`** (`[Authorize]`, mapped at `/hubs/game`):
   - `OnConnectedAsync`: if admin, add to the `admins` group. Send the caller the current `RoundUpdated`, plus `AdminRoundUpdated` for admins.
@@ -326,6 +349,7 @@ Original brief:
   - `POST /api/archive/finalize` (admin): `roundsPlayed` = rounds with `LockedAt != null`; `totalBuzzes` = BuzzRecord count. Serialize with `JsonSerializerDefaults.Web`, upsert `EventArchive` (unique per event), set `Event.FinalizedAt`. Can be re-run.
   - `GET /api/archive/{eventId}/export` (admin): `Results.File(bytes, "application/json", $"buzzer-archive-{year}.json")`; 404 if not finalized.
 - **From B5:** sum the ledger as `long` (`Sum(a => (long)a.Amount)`) and read it as `int`: the score endpoints keep every total inside the `int` range, but the plain `Sum` on `int` would still overflow. The player list excludes admins, as in `GET /api/scores/players`. `Ranking.Rank` needs input already in the default order (B5's `GetTeamScoresAsync` is a working example).
+- **From B6:** only locked rounds are saved, so every `Round` row has `LockedAt`; `BuzzRecord` rows include teammates' uncounted buzzes (at most `Round:MaxRecordedBuzzes` per round). For endpoint tests that need rounds, `factory.CreateRoundEventAsync` + `GameHost` (see B6) create an isolated event and play real rounds.
 - **Tests:** follow the shared rule on not hard-coding the 2026 event: `ArchiveBuilder` tests use several team counts (including one team and a team with no members) and tied totals; the endpoint tests build their own teams and compare with the database.
 - **Order (shared rule):** the document must be the same for the same data, so the endpoint passes `ArchiveBuilder` **pre-sorted** input and the builder sorts nothing implicitly. Teams: rank, then `SortOrder`, `Id`. Members: display name (ignoring case), `Id`. Players: rank, then display name (ignoring case), `Id`. Test that building twice from the same input, and from the same input shuffled, gives identical JSON apart from `generatedAt`.
 - **Check:** finalize → export → the file has `schemaVersion: 1`, correct totals and ranks. **Don't commit the file** (`.gitignore` already covers `buzzer-archive-*.json`).
@@ -335,7 +359,7 @@ Original brief:
 ## B8 — Hosting prep
 
 - `UseDefaultFiles()` + `UseStaticFiles()` before the endpoints. `MapFallbackToFile("index.html")` goes **after** the API and hub routes.
-- Unknown `/api/**` and `/hubs/**` paths must return a **404 ProblemDetails**, not `index.html`. Map an explicit catch-all for those prefixes ahead of the SPA fallback.
+- Unknown `/api/**` and `/hubs/**` paths must return a **404 ProblemDetails**, not `index.html`. Map an explicit catch-all for those prefixes ahead of the SPA fallback. **From B6:** the hub is `/hubs/game` (including `/hubs/game/negotiate`); check it still connects after the catch-all is added.
 - `/healthz`: `AddHealthChecks().AddDbContextCheck<AppDbContext>()` (package `Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore`), anonymous.
 - Add `backend/src/BuzzerApp.Api/wwwroot/` to `.gitignore` (built frontend output).
 - **From B3:** the fallback authorization policy applies to every endpoint, so `/healthz` and any SPA fallback (`MapFallbackToFile`) must be marked `AllowAnonymous()` or they return 401. Static files (`UseStaticFiles`) are not affected.
