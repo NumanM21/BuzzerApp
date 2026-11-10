@@ -15,14 +15,13 @@ namespace BuzzerApp.Api.Tests.Features;
 [Collection(ApiCollection.Name)]
 public class ArchiveEndpointsTests(ApiFactory factory)
 {
-    // (teams, players per team): one team, a team with nobody in it, ties between many, and a crowd.
+    // (teams, players per team): one team, teams with nobody in them, several, and a crowd. The document's rules over
+    // every shape are ArchiveBuilderTests in Core; these show the endpoint feeds the builder the right data in the right order.
     public static TheoryData<int, int> Shapes => new()
     {
         { 1, 1 },
         { 2, 0 },
-        { 2, 3 },
         { 6, 2 },
-        { 13, 1 },
         { 30, 1 },
     };
 

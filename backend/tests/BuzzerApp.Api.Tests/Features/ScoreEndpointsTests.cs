@@ -14,8 +14,10 @@ namespace BuzzerApp.Api.Tests.Features;
 [Collection(ApiCollection.Name)]
 public partial class ScoreEndpointsTests(ApiFactory factory)
 {
-    // How many teams or players there are changes from year to year: ranking and ordering run over several shapes.
-    public static TheoryData<int> Counts => new() { 2, 6, 13, 30 };
+    // How many teams or players there are changes from year to year, so nothing here assumes a count. Two sizes through
+    // HTTP are enough to show the endpoints apply the rule; the rule itself (ranks, ties, order) is unit tested in Core
+    // over many shapes (RankingTests, DefaultOrderTests).
+    public static TheoryData<int> Counts => new() { 2, 13 };
 
     // ---- helpers -----------------------------------------------------------------------------------------------
 
@@ -387,23 +389,15 @@ public partial class ScoreEndpointsTests(ApiFactory factory)
 
     public static TheoryData<object?, object?, object?, object?, object?, object?, string> InvalidAdjustments => new()
     {
+        // One row per kind of failure as it looks on the wire. Every other combination of invalid fields is a unit test
+        // (AdjustmentRulesTests), where it needs no host and no database.
         // target,   targetId, amount, multiplier, direction, reason,        the field that must be reported
         { "team",    null,     5,      null,       "add",     null,          "targetId" },
-        { "team",    0,        5,      null,       "add",     null,          "targetId" },
-        { null,      1,        5,      null,       "add",     null,          "target" },
         { "group",   1,        5,      null,       "add",     null,          "target" },   // not a known target name (rejected by the binder)
         { 7,         1,        5,      null,       "add",     null,          "target" },   // a number that is no enum member
-        { "team",    1,        null,   null,       "add",     null,          "amount" },
         { "team",    1,        0,      null,       "add",     null,          "amount" },
-        { "team",    1,        -5,     null,       "add",     null,          "amount" },
-        { "team",    1,        5,      0,          "add",     null,          "multiplier" },
-        { "team",    1,        5,      101,        "add",     null,          "multiplier" },
-        { "team",    1,        5,      -1,         "add",     null,          "multiplier" },
-        { "team",    1,        int.MaxValue, 2,    "add",     null,          "amount" },   // overflows when multiplied
         { "team",    1,        5,      null,       null,      null,          "direction" },   // a missing direction must not default to "add"
         { "team",    1,        5,      null,       "sideways", null,         "direction" },
-        { "team",    1,        5,      null,       7,         null,          "direction" },
-        { "team",    1,        5,      null,       "add",     "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", "reason" },   // 201 characters
     };
 
     [Theory]
