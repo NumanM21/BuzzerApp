@@ -3,7 +3,7 @@
 > **Audience:** AI coding assistants (Claude Code) and the developer.
 > **Purpose:** build a working, demo-able MVP fast, on foundations that can grow over several yearly events.
 > `../OriginalFullPlan.md` (outside the repo) is the older, learning-focused plan. Keep it for reference; **this file wins where they disagree**.
-> Last updated: 9 Nov 2026 (v2.3: Q4 resolved (dark); backend step briefs added in `docs/BackendSteps.md`; round snapshots get `Version`, `TakeEndedRecord()` added. v2.2: entities in Core/Domain confirmed; lock file and `.gitignore` fixed; individual team icons added; team colours confirmed from the icon files). Status: Phase 0 done — start at B0.
+> Last updated: 10 Nov 2026 (v2.4: Milestone B finished; B9 review folded in: §2 rewritten, feature structure in §5, seeding and migrations in §7.2, `/me` in §8.2, D24 and D32, Azure checklist in R2. v2.3: Q4 resolved (dark); backend step briefs added in `docs/BackendSteps.md`; round snapshots get `Version`, `TakeEndedRecord()` added). **Status: Milestone B (backend) done — start at F0.**
 
 ---
 
@@ -15,8 +15,8 @@
 4. **Comments explain why, not what.** No comments on obvious lines.
 5. **Respect §3 Decisions.** If you think one is wrong, say so and propose an alternative. Never silently deviate.
 6. **Open questions (§4).** If a step depends on an unresolved one, ask the developer **one question at a time** before writing code.
-7. **Verify before saying done.** Backend: `dotnet build BuzzerApp.slnx` and `dotnet test BuzzerApp.slnx` pass. Frontend (`frontend/`): `npm run lint`, `npm run build` and (once tests exist) `npx vitest run` pass.
-8. **Git.** Feature branch per step (`feature/<step-id>-<short-name>`). Small commits, one logical change each. Never commit to `main`. Never commit secrets or real people's data (archive exports contain real names).
+7. **Verify before saying done.** Backend: `dotnet build BuzzerApp.slnx` and the **whole** `dotnet test BuzzerApp.slnx` pass (about 30 s; add `--logger "console;verbosity=normal" --blame-hang-timeout 2m --blame-hang-dump-type none` so a hang is named, never run a filter and call it done). Frontend (`frontend/`): `npm run lint`, `npm run build` and (once tests exist) `npx vitest run` pass.
+8. **Git.** Feature branch per step (in practice `backend-b<n>` for Milestone B; use `frontend-f<n>` for Milestone F). Small commits, one logical change each. Never commit to `main`. Never commit secrets or real people's data (archive exports contain real names).
 9. **Don't over-engineer.** ~40 users, one active event at a time, single server. But keep the boundaries in §5 so features can be added later without rewrites.
 10. **Theme rule.** No hard-coded colours, fonts, radii or shadows outside `frontend/src/theme/packs/`. Components use Fluent `tokens` or the app's `--app-*` CSS variables (§9).
 11. **Package versions.** Don't guess. Use the latest stable version compatible with .NET 10 / React 19 and confirm it restores/installs.
@@ -44,32 +44,38 @@ A read-only **Display** (projector) screen is optional (§11, O0). Until then th
 
 ---
 
-## 2. Current repository state (8 Nov 2026)
+## 2. Current repository state (10 Nov 2026, after B9)
 
 ```
 BuzzerApp/                              ← repo root (GitHub, public)
 ├─ BuzzerApp.slnx                       ← solution at the ROOT
-├─ docker-compose.yaml                  ← local PostgreSQL 16 (needs fixes, step B2)
+├─ global.json, Directory.Build.props, Directory.Packages.props   ← SDK pin, build settings, central package versions
+├─ docker-compose.yaml                  ← local PostgreSQL 16 on 127.0.0.1:5434 (password from a git-ignored .env)
+├─ .github/workflows/ci.yml             ← jobs `backend` and `frontend` (required checks; don't rename)
 ├─ images/team-logos/                   ← 2026 design source files
 │  ├─ <team>-face.png ×6                ← 1512×1200 pixel-art faces on a solid team-colour background (no transparency)
 │  ├─ all-team-faces.png                ← all six faces together
 │  └─ group-participating-teams.png     ← design reference: six team cards with names
-├─ docs/BackendSteps.md                 ← implementation briefs for B0–B8
+├─ docs/PlanMVP.md, docs/BackendSteps.md
 ├─ backend/
-│  ├─ src/BuzzerApp.Api/                ← Minimal API template; still has weather sample; refs Core + Infrastructure
-│  ├─ src/BuzzerApp.Core/               ← class library; only Class1.cs; no package refs (keep it that way)
-│  ├─ src/BuzzerApp.Infrastructure/     ← refs Core; Npgsql.EntityFrameworkCore.PostgreSQL + EF Core Tools; only Class1.cs
-│  └─ tests/BuzzerApp.Core.Tests/       ← xUnit v2 template; only UnitTest1.cs
-└─ frontend/                            ← Vite 8 + React 19 + TS 6 template
+│  ├─ src/BuzzerApp.Core/               ← Domain/, Rounds/, Scoring/, Archive/, Security/; no package references
+│  ├─ src/BuzzerApp.Infrastructure/     ← Persistence/ (DbContext, Configurations, Migrations, DbErrors), Seeding/, Security/
+│  ├─ src/BuzzerApp.Api/                ← Features/<Feature>/ (contracts, service, endpoints), Realtime/, Common/
+│  ├─ tests/BuzzerApp.Core.Tests/       ← xUnit v3, pure logic
+│  └─ tests/BuzzerApp.Api.Tests/        ← unit tests for Api pieces + integration tests on a Testcontainers PostgreSQL
+└─ frontend/                            ← Vite 8 + React 19 + TS 6 template, untouched: Milestone F starts here
 ```
 
-**Known issues to fix (in the step listed)**
-| Issue | Fix | Step |
+**Backend status:** every step B0–B9 is done (details and deviations in `docs/BackendSteps.md`; **its B9 section is the summary of the current design**). The whole backend test run takes about 30 seconds and needs Docker. B9 also ran the API live in Production mode with a scripted client (36 players, 14 SignalR connections, two sessions, a restart).
+
+**Things B9 found that the plan had not anticipated** (all fixed; kept here so the same mistakes aren't repeated):
+| Issue | What it was | Now |
 |---|---|---|
-| `Class1.cs` ×2, `UnitTest1.cs`, weather sample | Delete | B0 |
-| No CI | Add GitHub Actions workflow (§10) | B0 |
-| `docker-compose.yaml`: obsolete `version:` key; password committed to a public repo; port bound on all network interfaces | See B2 | B2 |
-| `dotnet ef` needs `Microsoft.EntityFrameworkCore.Design` in the **startup** project (Api). The Tools package in Infrastructure is `PrivateAssets=all`, so it doesn't flow to Api | Add `Microsoft.EntityFrameworkCore.Design` to Api (`PrivateAssets=all`) | B2 |
+| "The Api tests take 20+ minutes" | One round test deadlocked intermittently (a fake clock firing the round clock's timer inside a lock). The suite itself was always fast | The clock ticks on the thread pool; CI names and stops a hung test after 2 minutes |
+| `main` was red after B8 | Catch-all routes for `/api/**` and `/hubs/**` took part in route selection and broke four tests; B7 and B8 had stopped running the whole suite | A middleware answers unmatched requests; every step runs the whole suite |
+| First deployment would not start | Migrations ran only in Development | `Database:MigrateOnStartup` (§7.2) |
+| Join rush would hit the rate limit | 30 requests a minute per IP, shared by the team list and registration | 300 (D24) |
+| Logic only reachable through HTTP | Handlers held validation, queries, rules and mapping | Feature services + pure rules with unit tests (§5) |
 
 GitHub rules (set by developer): PRs required into `main`, 1 approval, rebase merge only.
 
@@ -102,7 +108,7 @@ GitHub rules (set by developer): PRs required into `main`, 1 approval, rebase me
 | D21 | Team membership | Player picks a team at registration, **cannot leave or switch**. Admins move players (⋮ → Move to… → dialog listing the **other** teams). Late joining is allowed any time | As specified |
 | D22 | Auth | **Cookie auth**, same origin (Vite proxy in dev; API serves the built React app in production). Returns `401`/`403`, never redirects. Persistent cookie, 30-day sliding expiry | Works for REST + SignalR; phones stay signed in |
 | D23 | Claims | Cookie holds `PlayerId`, `EventId`, `Role`. **Not** `TeamId` or names | Moves/renames would make them stale |
-| D24 | Rate limiting | Sign-in limited **per real name** (e.g. 5 attempts / 5 min). Registration limited per IP but generously (e.g. 30/min) | Everyone at the venue shares **one public IP**; a strict per-IP limit would lock the whole family out |
+| D24 | Rate limiting | Sign-in limited **per real name** (5 attempts / 5 min). Registration and the join page's team list share one per-IP limit, generous on purpose: **300 a minute** (config `RateLimiting:JoinCodePerMinute`; never below 100) | Everyone at the venue shares **one public IP**; a strict per-IP limit would lock the whole family out. Changed 10 Nov 2026 from "e.g. 30/min": each phone loads the team list and registers, 2026 has about 32 people and a later year may have 80 joining together |
 | D25 | Scores | **Ledger**: every change is a `ScoreAdjustment` row with **exactly one** of `TeamId` / `PlayerId`. Team total = sum of team rows; player total = sum of player rows. **No roll-up** | Q answered: kept separate for now. Future "phases with fixed points" can add a nullable category column |
 | D26 | Score entry | Amount (> 0) × multiplier (default 1), then **Add** or **Remove**. **Undo** adds a reversing row; ledger rows are never deleted | Audit trail |
 | D27 | Database | **PostgreSQL** via EF Core (Npgsql). Local: Docker Compose. Connection string in **User Secrets** | Work DB; pgAdmin available |
@@ -110,7 +116,7 @@ GitHub rules (set by developer): PRs required into `main`, 1 approval, rebase me
 | D29 | Archive | **Finalize** builds a frozen, versioned **JSON snapshot** (teams, members, colours/icons keys, theme key, team + player scores, ranks) stored in `EventArchive` (`jsonb`). **Export** downloads it. Live rows are also kept | Tiny (~tens of KB/year), portable, renders with the normal UI components, immune to future schema changes. See §8.6 |
 | D30 | Frontend stack | React 19 + TS + Vite, **Fluent UI v9** (`@fluentui/react-components`, `@fluentui/react-icons`), `react-router`, **TanStack Query**, `@microsoft/signalr`, Vitest | Developer's work stack; Query handles loading/caching/refetch |
 | D31 | Theming | **Theme packs**: all visual identity (Fluent theme, app tokens, fonts, team colours, team icons, effects) lives in `frontend/src/theme/packs/<key>/`. The active pack is chosen by the event's `ThemeKey`. Packs are never deleted (archives reference them) | Redesign each year by adding a pack, not editing components |
-| D32 | Tests | Core: thorough xUnit (state machine, concurrency, time). **Api: integration tests for every endpoint step from B3 on** (`WebApplicationFactory` against a real PostgreSQL in a Testcontainers container; plus plain unit tests for Api helpers). Frontend: Vitest for pure logic (buzzer state, sorting). No browser end-to-end tests | Test where bugs would hurt most. Changed 10 Nov 2026: the original "Api tests only if time allows" left auth, validation and the unique-index races untested; running them against real Postgres is the only way to see those behave |
+| D32 | Tests | Core: thorough xUnit (state machine, concurrency, time). **Api: integration tests for every endpoint step from B3 on** (`WebApplicationFactory` against a real PostgreSQL in a Testcontainers container; plus plain unit tests for Api helpers). Frontend: Vitest for pure logic (buzzer state, sorting). No browser end-to-end tests | Test where bugs would hurt most. Changed 10 Nov 2026: the original "Api tests only if time allows" left auth, validation and the unique-index races untested; running them against real Postgres is the only way to see those behave. **Refined in B9:** a rule that needs no database is a pure function with a unit test (Core, or a `*Rules` / service helper in Api); integration tests are kept for what only PostgreSQL or the HTTP pipeline can show, with one or two shapes each. The whole run takes about 30 s and every step runs all of it |
 | D33 | CI | **GitHub Actions** on every PR: backend build + tests; frontend lint + build (+ Vitest). Required status check in the `main` ruleset | Approval alone doesn't prove it builds |
 
 ---
@@ -137,9 +143,11 @@ GitHub rules (set by developer): PRs required into `main`, 1 approval, rebase me
         │                                         │ server→admins: AdminRoundUpdated(admin)
  ┌──────▼─────────────────────────────────────────▼──────────────────────┐
  │ BuzzerApp.Api                                                         │
- │  Features/{Session,Event,Teams,Players,Scores,Archive}/  endpoints    │
+ │  Features/{Session,Event,Teams,Players,Scores,Archive}/               │
+ │             contracts · service (logic) · endpoints (HTTP only)       │
  │  Realtime/  GameHub · RoundService (singleton) · RoundClock (100ms)   │
- │  Common/    auth setup, ICurrentUser, ProblemDetails, rate limiting   │
+ │             roster source · broadcaster · persistence queue + worker  │
+ │  Common/    auth, ICurrentUser, Result/Error → ProblemDetails, limits │
  ├───────────────────────────────────────────────────────────────────────┤
  │ BuzzerApp.Infrastructure                                              │
  │  Persistence/  AppDbContext · Configurations/ · Migrations/           │
@@ -159,7 +167,9 @@ GitHub rules (set by developer): PRs required into `main`, 1 approval, rebase me
 
 **Dependencies:** Api → Infrastructure → Core; Api → Core. Core → nothing outside the BCL.
 
-**Endpoint convention:** vertical slices. `Features/Teams/TeamEndpoints.cs` holds the route group (`MapGroup("/api/teams")`), request/response DTO records and handlers. A new feature (Shop, Schedule, Questions) = a new folder.
+**Feature convention (changed in B9):** vertical slices, three kinds of file per feature folder. `TeamContracts.cs` holds the request/response records (the wire format). `TeamService.cs` holds everything that reads or writes data and decides; it returns values or a `Result<T>` (an `Error` when it refuses) and knows nothing about HTTP. `TeamEndpoints.cs` holds the route group (`MapGroup("/api/teams")`), authorization, and turning the service's answer into a response; no logic. Rules that need no database are pure functions (Core, or a `*Rules` class) so they can be unit tested. A new feature (Shop, Schedule, Questions) = a new folder plus one line each in `Features/FeatureSetup.cs`'s `AddFeatures` and `MapFeatures`. *Originally the endpoints file also held the records and the handlers' logic; that left the rules reachable only through HTTP and PostgreSQL, and repeated the same sorts and lookups in every feature.*
+
+The same split applies to the live round: `RoundService` keeps the rules about order (what is saved, in what order, when a broadcast goes out) and talks to the database and SignalR through `IRosterSource`, `IRoundBroadcaster` and `IRoundRecordSink`, so those rules are unit tested without a host.
 
 **What lives where**
 | Data | Where | Survives restart? |
@@ -246,7 +256,9 @@ From config (`Event` section; secrets in User Secrets):
 },
 "Admins": [ { "RealName": "<secret>", "DisplayName": "<secret>", "Pin": "<secret>" } ]
 ```
-**Rules:** create the event if its `JoinCode` doesn't exist and make it the only active one. Create teams **only if the event has none** (never overwrite admin renames on restart). Create each admin **only if missing** (never reset a PIN). Apply pending migrations at startup in Development only.
+**Rules:** the **join code identifies the event** (one session). Create the event if its `JoinCode` doesn't exist; either way make the configured event the only active one (so going back to an earlier code re-activates that session). A new code is therefore a new session with its own teams, players and scores: there can be several in a year, and a session that went wrong is replaced by configuring a new code. Create teams **only if the event has none** (never overwrite admin renames on restart). Create each admin **only if missing** (never reset a PIN). The event's name, year and theme are never changed after it is created.
+
+**Migrations:** applied at startup in Development. Anywhere else only when `Database:MigrateOnStartup` is `true` (added in B9: without it a first deployment crashed at the seeder, because nothing created the tables). Azure sets `Database__MigrateOnStartup=true`.
 
 ### 7.3 Core: the round state machine
 
@@ -264,7 +276,7 @@ RoundPhase: Idle → Open → Locked → Exhausted
 
 **Suggested API (the AI may refine names)**
 ```csharp
-public sealed record RosterEntry(int PlayerId, string PlayerName, int TeamId, string TeamName);
+public sealed record RosterEntry(int PlayerId, string DisplayName, int TeamId, string TeamName);   // display name only: snapshots go to every player
 public sealed record RoundSettings { public TimeSpan GraceWindow { get; init; } = TimeSpan.FromSeconds(2); public int MaxRecordedBuzzes { get; init; } = 100; }
 public enum RoundPhase { Idle, Open, Locked, Exhausted }
 public enum TeamTurnStatus { Waiting, Current, Passed }
@@ -280,6 +292,7 @@ public sealed class BuzzRound
     public bool Tick();                                                 // true if state changed
     public PublicRoundSnapshot GetPublicSnapshot();
     public AdminRoundSnapshot GetAdminSnapshot();
+    public (PublicRoundSnapshot Public, AdminRoundSnapshot Admin) GetSnapshots();   // both of ONE state (B9): a broadcast sends this pair
     public LockedRoundRecord? TakeLockedRecord();                       // once after locking, for persistence (D28)
     public EndedRoundRecord? TakeEndedRecord();                         // once after Reset ends a locked round: EndedAt + team outcomes
 }
@@ -313,7 +326,7 @@ All routes under `/api`. JSON camelCase. Errors as **ProblemDetails**. Validatio
 | POST | `/api/session/register` | anonymous; rate-limited per IP (generous) | `{ joinCode, realName, displayName, pin, teamId }` → `201` + signed in. Real or display name taken → `409` (message tells them to sign in instead) |
 | POST | `/api/session/signin` | anonymous; rate-limited **per normalized real name** | `{ joinCode, realName, pin }` → `200` + signed in; wrong → `401` (same message for unknown name and wrong PIN) |
 | POST | `/api/session/signout` | signed in | `204` |
-| GET | `/api/session/me` | signed in | `{ playerId, realName, displayName, role, teamId?, teamName? }` (read from DB, not the cookie) |
+| GET | `/api/session/me` | signed in | `{ playerId, realName, displayName, role, teamId?, teamName? }` (read from DB, not the cookie). `401` + cookie cleared if the player is gone **or their event is no longer the active one**. Re-issues the cookie if the role changed (a promoted player becomes an admin without signing in again). The app calls it on start and after a reconnect |
 
 Admins sign in through `/signin` (no team).
 
@@ -442,9 +455,9 @@ Border in the team colour (pack `border.width`), icon top-left, team name, membe
 
 Target: **MVP usable by 29 Nov**, rehearsal first week of December, then optional features. One step ≈ one branch ≈ one PR.
 
-### Milestone B — Backend (8–15 Nov)
+### Milestone B — Backend (8–15 Nov) — DONE 10 Nov 2026
 
-Implementation detail per step (files, gotchas, checks, suggested model): **`docs/BackendSteps.md`**. Branching: B0 on `backend-phase-1` → PR to `main` first (so CI exists); then `feature/b<n>-…` per step.
+Implementation detail per step (files, gotchas, checks, what was actually built and every deviation): **`docs/BackendSteps.md`**. The table below is the original plan; where a DONE note there differs, the note is right.
 
 | Step | Do | Done when |
 |---|---|---|
@@ -456,9 +469,10 @@ Implementation detail per step (files, gotchas, checks, suggested model): **`doc
 | **B5** Scores | §8.5 using `ScoreMath` | Totals correct; reverse works once |
 | **B6** Realtime | `GameHub`, `RoundService`, `RoundClock`, round persistence, change notifications from REST writes | Two clients see buzzes/locks instantly; lock after 2s with no input |
 | **B7** Archive | §8.6 | Finalize + export produce a valid v1 document |
-| **B8** Hosting prep | API serves the built frontend (`UseDefaultFiles`, `UseStaticFiles`, `MapFallbackToFile("index.html")` after API/hub routes). `/healthz` | Built frontend served by `dotnet run` |
+| **B8** Hosting prep | API serves the built frontend (`UseDefaultFiles`, `UseStaticFiles`, and a fallback to `index.html` for client routes; since B9 a middleware after routing, not `MapFallbackToFile`). `/healthz` | Built frontend served by `dotnet run` |
+| **B9** Review + UAT | Re-read the whole backend against this plan, fix what the per-step sessions missed, restructure where the next features need it, and walk the whole event through live against a throwaway database | Whole suite green; live walkthrough passes in Production mode |
 
-**CI workflow** (`.github/workflows/ci.yml`; the AI should check the latest major versions of the `actions/*` steps):
+**CI workflow.** The real file is `.github/workflows/ci.yml` and has moved on from this original sketch: newer action versions, the SDK read from `global.json`, and for the backend job `timeout-minutes: 15` plus `--logger "console;verbosity=normal" --blame-hang-timeout 2m --blame-hang-dump-type none` on `dotnet test`. The job names `backend` and `frontend` are required checks and must not be renamed. Original sketch:
 ```yaml
 name: CI
 on:
@@ -502,7 +516,7 @@ jobs:
 | **F0** Foundations | Install Fluent UI v9 (`@fluentui/react-components`, `@fluentui/react-icons`), `react-router`, `@tanstack/react-query`, `@microsoft/signalr`, Vitest. Vite dev proxy: `/api` and `/hubs` → `http://localhost:5283` (`ws: true` for `/hubs`). Folder structure below. Remove template content. Theme system §9.1–9.2 with the `default` pack and `/dev/theme` preview | App shell renders with the default pack; lint/build pass |
 | **F1** Arcade pack | Dark mode (Q4). `packs/arcade-2026` per §9.3: brand ramp, overrides, fonts, palette, icons (copied from `images/team-logos/`), effects | `/dev/theme` shows all six team cards and every buzzer state in the arcade style |
 | **F2** API layer | `src/api/client.ts` (JSON, `credentials: 'include'`, ProblemDetails → typed error), `types.ts` from §8, one hook per endpoint | Used by the join screen |
-| **F3** Realtime | `GameConnectionProvider` (one connection, `withAutomaticReconnect()`, reconnect on `visibilitychange`, StrictMode-safe), `TeamsChanged`/`ScoresChanged` → `invalidateQueries`. Pure `getBuzzerState` + Vitest tests. Enable Vitest in CI | Two tabs stay in sync; tests green in CI |
+| **F3** Realtime | `GameConnectionProvider` (one connection, `withAutomaticReconnect()`, reconnect on `visibilitychange`, StrictMode-safe), `TeamsChanged`/`ScoresChanged` → `invalidateQueries`. Pure `getBuzzerState` + Vitest tests. Enable Vitest in CI. **From B9:** call `/api/session/me` on start and after every hub reconnect (a `401` means the session ended: show the join page), and restart the hub connection when `me.role` changes (the connection keeps the role it was opened with). Drop any snapshot whose `version` is lower than the one held | Two tabs stay in sync; tests green in CI |
 | **F4** Register / Sign in | `/join?code=XXXX` with two tabs: **New player** (real name, display name, PIN, team picker showing team cards) and **Sign in** (real name, PIN). Route guards. Players → `/play`, admins → `/admin` | All error cases handled |
 | **F5** Play `/play` | Big round arcade buzzer (states per §9.3), team queue below, bottom nav: Buzz · Teams · Scores | Works at 360px wide |
 | **F6** Teams `/teams` | §9.4 for players and admins; Move to… dialog lists the other teams | Permission rules match §8.3–8.4 |
@@ -531,7 +545,7 @@ frontend/src/
 | Step | Do |
 |---|---|
 | R1 | PWA basics (`vite-plugin-pwa`: manifest, icons from the pack, **cache the app shell only, never `/api` or `/hubs`**, auto-update). Screen Wake Lock on `/play` and `/admin` |
-| R2 | Hosting: Azure App Service **B1** for the event weekend (free F1 caps WebSockets at 5) + Azure Database for PostgreSQL Flexible Server (smallest burstable). Config/secrets via App Settings |
+| R2 | Hosting: Azure App Service **B1** for the event weekend (free F1 caps WebSockets at 5) + Azure Database for PostgreSQL Flexible Server (smallest burstable). Config/secrets via App Settings (`ConnectionStrings__BuzzerDb`, `Event__JoinCode`, `Admins__0__RealName` / `__DisplayName` / `__Pin`). **Checklist from B9 (each was checked by running the API in Production mode):** (1) `Database__MigrateOnStartup=true`, or the first start fails because no tables exist. (2) Turn on **HTTPS Only** in the App Service: TLS ends at Azure's front end, the app sees plain http and cannot redirect by itself (`UseHttpsRedirection` finds no https port and does nothing). The auth cookie is `Secure` in Production, so it only works over https. (3) `ASPNETCORE_FORWARDEDHEADERS_ENABLED=true`, so the per-IP join limit sees phones' addresses instead of Azure's proxy. (4) **Exactly one instance**, no scale-out: the live round and the sign-in throttle are in memory. (5) WebSockets on. (6) After a restart, check a phone is still signed in (Data Protection keys must persist; they do on a code-deployed App Service, not necessarily in a custom container). (7) `/healthz` is the health probe; it answers over http and https |
 | R3 | Build: `npm run build` → copy `dist` into Api `wwwroot` → `dotnet publish`. Optional GitHub Actions deploy job |
 | R4 | Rehearsal with 5+ real phones: Wi-Fi and 4G, lock/unlock mid-round, refresh, sign in on another browser, two admins, near-simultaneous buzzes, server restart mid-game |
 | R5 | Event day + after: QR/join code ready, admin PINs tested, fallback plan (hands up). **Afterwards: Finalize → Export JSON → `pg_dump` the database → store both privately (not in the public repo) → only then delete cloud resources** |
@@ -558,7 +572,7 @@ frontend/src/
 
 ## 12. Git & PR workflow (GitHub)
 
-- Branch per step: `feature/b1-core-round`, `feature/f5-play-screen`.
+- Branch per step: `backend-b9`, `frontend-f5` (the `feature/…` names first written here were never used).
 - Before a PR: `git fetch` → `git rebase origin/main` → re-run build/tests → `git push --force-with-lease`.
 - GitHub "Rebase and merge" re-creates your commits on `main` with new IDs. After merging, delete the branch and branch again from the updated `main`.
 - Tidy commits before review (`git rebase -i origin/main`); every commit lands on `main`.
