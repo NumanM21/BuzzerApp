@@ -2,7 +2,7 @@
 
 > **Audience:** AI workers implementing one step each (usually in a fresh session).
 > Adds implementation detail to `docs/PlanMVP.md` §10 Milestone B. **PlanMVP wins on product decisions; this file wins on implementation detail.**
-> Written 9 Nov 2026. **B0 and B1 are done and merged into `main`; B2 is done on branch `backend-b2`, B3 on `backend-b3-auth`, B4 on `backend-b4`, B5 on `backend-b5`, B6 on `backend-b6` and B7 on `backend-b7` (each DONE section records what was actually produced).** Start at B8.
+> Written 9 Nov 2026. **B0 and B1 are done and merged into `main`; B2 is done on branch `backend-b2`, B3 on `backend-b3-auth`, B4 on `backend-b4`, B5 on `backend-b5`, B6 on `backend-b6`, B7 on `backend-b7` and B8 on `backend-b8` (each DONE section records what was actually produced).** Start at B9.
 
 | Step | Branch | Suggested model | Why |
 |---|---|---|---|
@@ -14,7 +14,7 @@
 | B5 | `backend-b5` — **DONE** | Sonnet | CRUD + `ScoreMath` |
 | B6 | `backend-b6` — **DONE** | **Opus** (or Sonnet + Opus review) | Singleton + clock + SignalR + ordered persistence; bugs only show up under timing |
 | B7 | `backend-b7` — **DONE** | Sonnet | Pure builder + 2 endpoints |
-| B8 | `backend-b8-hosting` | Sonnet | Static file hosting |
+| B8 | `backend-b8` — **DONE** | Sonnet | Static file hosting |
 | B9 | `backend-b9-review` | **Opus or Fable** | Whole-backend re-review + end-to-end walkthrough against a throwaway "UAT" database |
 
 ---
@@ -374,9 +374,25 @@ Original brief:
 
 ---
 
-## B8 — Hosting prep
+## B8 — Hosting prep — DONE
 
-- `UseDefaultFiles()` + `UseStaticFiles()` before the endpoints. `MapFallbackToFile("index.html")` goes **after** the API and hub routes.
+Kept for reference; **do not redo.** What exists now, including where it differs from the original brief:
+
+- **`Api/Common/HostingSetup.cs`** (all of B8 in one file) and four lines in `Program.cs`: `AddAppHealthChecks()`, `UseFrontendFiles()` (`UseDefaultFiles` + `UseStaticFiles`), an explicit `UseRouting()` right after it, and `MapHostingEndpoints()` as the last mapping. Package `Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore` **10.0.14** (latest stable; same version as EF Core) in `Directory.Packages.props` and the Api csproj. `.gitignore` has `backend/src/BuzzerApp.Api/wwwroot/`.
+- **Endpoints, all `AllowAnonymous()`:** `GET /healthz` (`AddDbContextCheck<AppDbContext>`: 200 `Healthy`, 503 `Unhealthy`), `Map("/api/{**path}")` and `Map("/hubs/{**path}")` returning a **404 ProblemDetails for any method**, `MapFallbackToFile("index.html")` (the default `{*path:nonfile}` pattern, so paths with a file extension never get HTML), and a last `MapFallback("{**path}")` that answers 404.
+- **Deviation / finding 1, explicit `UseRouting()` is required.** The static-file and default-file middleware skip any request that already has an endpoint, and `WebApplication` adds its implicit `UseRouting` at the very start of the pipeline. With a catch-all route every built asset was 404 (the asset test failed until `UseRouting()` was placed after `UseFrontendFiles()`). Keep that order if the pipeline is touched.
+- **Deviation / finding 2, the extra last-resort fallback.** A path with a file extension (a missing `/assets/x.js`, `/favicon.ico`) matches no endpoint, and then the fallback authorization policy answers **401** to an anonymous caller. The brief didn't ask for it, but a missing file reading "sign in" is misleading, so it is a 404 for everyone. `MapFallback(handler)` alone doesn't help (its default pattern is also `:nonfile`), hence the explicit `"{**path}"`.
+- **Behaviour change from B3:** an unknown `/api/**` route is now **404 for anonymous callers too** (B3 recorded 401). `EventEndpointsTests.An_unknown_route_is_401_when_anonymous…` became `An_unknown_api_route_is_404_when_anonymous_too`. Side effect to accept: a **wrong HTTP method on a real API route** (e.g. `DELETE /api/session/me`) is now a 404 ProblemDetails, not a 405, because the catch-all accepts every method.
+- **Not done on purpose:** no cache headers on `index.html` / `/assets` (R1's service worker work is the place), no `X-Forwarded-*` handling (R2), and no live run (see below).
+- **Api tests:** `Features/HostingTests.cs`, 21 test cases. They run on a second host over the shared container (`factory.WithWebHostBuilder(b => b.UseWebRoot(tempDir))`) with a **fake build** in a temp directory, so they don't depend on a real `wwwroot`. Covered: `/` and client routes (`/join`, `/some/client/route`, `/admin/scores`, `/play/`) serve `index.html` to anonymous visitors; a built asset is served as itself with a JavaScript content type; missing files are 404 without HTML; unknown `/api` and `/hubs` paths (several methods, the bare `/api`, `/api/` and `/hubs`, a nested path) are a 404 `application/problem+json`; `/api/event` still returns JSON and `/api/teams` still 401s; `POST /hubs/game/negotiate` without a cookie is 401 (the hub's own authorization, not the catch-all); `/healthz` is 200 `Healthy` anonymously and the report contains the `AppDbContext` check. **Mutation-checked:** deleting the `/api` catch-all fails 3 tests, dropping `AllowAnonymous()` from it fails 5, dropping it from `/healthz` fails 1, and removing the explicit `UseRouting()` fails the asset test.
+- **Run for this step (per the brief, not the whole suite):** `dotnet test backend/tests/BuzzerApp.Core.Tests` (132 passed) and the Api filters `HostingTests`, `GameHubTests`, `EventEndpointsTests` and `SessionLifecycleTests` (49 passed, about 4 s). The whole Api suite was **not** run, so "all green" is still unproven since B6 (B9 runs it once, and with `Event:Teams` at 3 and 8; B8 doesn't touch teams or players). `dotnet build BuzzerApp.slnx`: zero warnings.
+- **Not run live:** the Check (`npm run build`, copy `dist/*` into `wwwroot`, `dotnet run`) was not run, because `dotnet run` starts against the developer's Docker dev database (see the shared rule). `npm run build` itself succeeds, and the Vite output uses absolute `/assets/...` URLs, which the static files and fallback serve. The B8 `.http` requests were written, not executed. B9 does the live run against its UAT database: copy the real `dist` into `wwwroot` there, and check `/`, a client route, a real asset, `/api/nope`, `/hubs/nope`, `/healthz` and that the hub still connects.
+- **For R2:** `/healthz` sits behind `UseHttpsRedirection` outside Development, so an Azure health probe over plain http gets a redirect unless forwarded headers are set (`ASPNETCORE_FORWARDEDHEADERS_ENABLED=true`, already noted below) or the probe uses https.
+- **Deviation, branch name:** `backend-b8` (already created by the developer), not `backend-b8-hosting`.
+
+Original brief:
+
+- `UseDefaultFiles() + `UseStaticFiles()` before the endpoints. `MapFallbackToFile("index.html")` goes **after** the API and hub routes.
 - Unknown `/api/**` and `/hubs/**` paths must return a **404 ProblemDetails**, not `index.html`. Map an explicit catch-all for those prefixes ahead of the SPA fallback. **From B6:** the hub is `/hubs/game` (including `/hubs/game/negotiate`); check it still connects after the catch-all is added.
 - `/healthz`: `AddHealthChecks().AddDbContextCheck<AppDbContext>()` (package `Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore`), anonymous.
 - Add `backend/src/BuzzerApp.Api/wwwroot/` to `.gitignore` (built frontend output).
