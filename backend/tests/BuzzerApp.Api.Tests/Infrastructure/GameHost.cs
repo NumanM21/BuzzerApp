@@ -50,14 +50,7 @@ public sealed class GameHost : IAsyncDisposable
     /// A genuine auth cookie for any player, protected by this host's own cookie handler. Round tests use players of an
     /// event they create (so the roster holds exactly their teams), and sign-in only accepts the active event's join code.
     /// </summary>
-    public string CookieFor(Player player)
-    {
-        var options = App.Services.GetRequiredService<IOptionsMonitor<CookieAuthenticationOptions>>()
-            .Get(CookieAuthenticationDefaults.AuthenticationScheme);
-        var principal = CurrentUser.CreatePrincipal(player, CookieAuthenticationDefaults.AuthenticationScheme);
-        var ticket = new AuthenticationTicket(principal, new AuthenticationProperties(), CookieAuthenticationDefaults.AuthenticationScheme);
-        return $"{AuthSetup.CookieName}={options.TicketDataFormat.Protect(ticket)}";
-    }
+    public string CookieFor(Player player) => App.CookieFor(player);
 
     public Task<GameClient> ConnectAsync(Player player) => App.ConnectGameAsync(CookieFor(player));
 
@@ -66,6 +59,19 @@ public sealed class GameHost : IAsyncDisposable
 
 public static class GameHubConnections
 {
+    /// <summary>
+    /// A genuine auth cookie for any player, protected by this host's own cookie handler, as a Cookie header value. Tests use
+    /// it for players of an event they created (sign-in only accepts the active event's join code), over REST or the hub.
+    /// </summary>
+    public static string CookieFor(this WebApplicationFactory<Program> app, Player player)
+    {
+        var options = app.Services.GetRequiredService<IOptionsMonitor<CookieAuthenticationOptions>>()
+            .Get(CookieAuthenticationDefaults.AuthenticationScheme);
+        var principal = CurrentUser.CreatePrincipal(player, CookieAuthenticationDefaults.AuthenticationScheme);
+        var ticket = new AuthenticationTicket(principal, new AuthenticationProperties(), CookieAuthenticationDefaults.AuthenticationScheme);
+        return $"{AuthSetup.CookieName}={options.TicketDataFormat.Protect(ticket)}";
+    }
+
     /// <summary>Connects over WebSockets through the test server, as a browser would, carrying the given auth cookie (or none).</summary>
     public static async Task<GameClient> ConnectGameAsync(this WebApplicationFactory<Program> app, string? cookie)
     {
