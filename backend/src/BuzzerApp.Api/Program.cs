@@ -21,10 +21,14 @@ builder.Services.AddOpenApi();
 builder.Services.AddAppOptions(builder.Configuration);
 builder.Services.AddInfrastructure(connectionString);
 builder.Services.AddAppAuth(builder.Environment);
-builder.Services.AddAppRateLimiting();
+builder.Services.AddAppRateLimiting(builder.Configuration);
 builder.Services.AddSingleton<SignInThrottle>();
 builder.Services.AddSingleton<PinDecoy>();
 builder.Services.AddProblemDetails();
+
+// By default Development makes a bad request (missing or malformed body) throw, which UseExceptionHandler then
+// reports as a 500, while Production answers 400. Turning it off keeps both environments identical.
+builder.Services.Configure<RouteHandlerOptions>(o => o.ThrowOnBadRequest = false);
 
 // Enums go out as "admin" / "add" rather than numbers; B6 configures the same converter for SignalR.
 builder.Services.ConfigureHttpJsonOptions(o =>
@@ -58,3 +62,6 @@ app.MapEventEndpoints();
 app.MapSessionEndpoints();
 
 app.Run();
+
+// Lets the test project use WebApplicationFactory<Program>; top-level statements make Program internal otherwise.
+public partial class Program;
