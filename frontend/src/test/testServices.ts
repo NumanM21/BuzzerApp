@@ -1,11 +1,14 @@
 import type { AppServices } from '@/app/AppServices';
 import { EventStore } from '@/stores/EventStore';
+import { RoundStore } from '@/stores/RoundStore';
 import { ScoresStore } from '@/stores/ScoresStore';
+import { ServerClock } from '@/stores/ServerClock';
 import { SessionStore } from '@/stores/SessionStore';
 import { TeamsStore } from '@/stores/TeamsStore';
 import { FakeArchiveApi } from './fakes/FakeArchiveApi';
 import { FakeEventApi } from './fakes/FakeEventApi';
-import { FakeGameEvents } from './fakes/FakeGameEvents';
+import { FakeGameConnection } from './fakes/FakeGameConnection';
+import type { FakeGameEvents } from './fakes/FakeGameEvents';
 import { FakeJoinCodeMemory } from './fakes/FakeJoinCodeMemory';
 import { FakePlayersApi } from './fakes/FakePlayersApi';
 import { FakeScoresApi } from './fakes/FakeScoresApi';
@@ -21,11 +24,14 @@ export interface TestFakes {
   playersApi: FakePlayersApi;
   scoresApi: FakeScoresApi;
   archiveApi: FakeArchiveApi;
+  /** The same object as `connection`, typed for the stores that only listen for "data changed". */
   events: FakeGameEvents;
+  connection: FakeGameConnection;
   joinCodeMemory: FakeJoinCodeMemory;
 }
 
 export function createTestFakes(): TestFakes {
+  const connection = new FakeGameConnection();
   return {
     eventApi: new FakeEventApi(),
     sessionApi: new FakeSessionApi(),
@@ -33,7 +39,8 @@ export function createTestFakes(): TestFakes {
     playersApi: new FakePlayersApi(),
     scoresApi: new FakeScoresApi(),
     archiveApi: new FakeArchiveApi(),
-    events: new FakeGameEvents(),
+    events: connection,
+    connection,
     joinCodeMemory: new FakeJoinCodeMemory(),
   };
 }
@@ -49,12 +56,16 @@ export function createTestServices(
   const session = new SessionStore(fakes.sessionApi);
   const scores = new ScoresStore(fakes.scoresApi, session, fakes.events);
   const teams = new TeamsStore(fakes.teamsApi, fakes.playersApi, session, scores, fakes.events);
+  // The phone's clock is `Date.now()`, which `vi.useFakeTimers()` controls.
+  const clock = new ServerClock();
   return {
     themes: new FakeThemeCatalog({ default: makePackKeys(3, 2) }),
     event: new EventStore(fakes.eventApi),
     session,
     teams,
     scores,
+    round: new RoundStore(fakes.connection, clock),
+    clock,
     eventApi: fakes.eventApi,
     archive: fakes.archiveApi,
     joinCodeMemory: fakes.joinCodeMemory,
