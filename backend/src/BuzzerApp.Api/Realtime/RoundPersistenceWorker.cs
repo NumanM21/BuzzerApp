@@ -103,7 +103,7 @@ public sealed class RoundPersistenceWorker(
         round.EndedAt = record.EndedAt;
 
         // Matched by team id, never by position: the outcome list and the rows are separate collections.
-        var outcomeByTeam = record.TeamOutcomes.ToDictionary(o => o.TeamId, o => ToOutcome(o.Outcome));
+        var outcomeByTeam = record.TeamOutcomes.ToDictionary(o => o.TeamId, o => o.Outcome);
         var counted = await db.BuzzRecords
             .Where(b => b.RoundId == record.RoundId && b.CountedForTeam)
             .OrderBy(b => b.Sequence)
@@ -115,12 +115,4 @@ public sealed class RoundPersistenceWorker(
 
         await db.SaveChangesAsync(ct);
     }
-
-    private static TeamOutcome ToOutcome(RoundTeamOutcome outcome) => outcome switch
-    {
-        RoundTeamOutcome.Current => TeamOutcome.Current,
-        RoundTeamOutcome.Passed => TeamOutcome.Passed,
-        RoundTeamOutcome.Unreached => TeamOutcome.Unreached,
-        _ => throw new ArgumentOutOfRangeException(nameof(outcome), outcome, null),
-    };
 }

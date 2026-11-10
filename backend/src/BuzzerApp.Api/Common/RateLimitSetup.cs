@@ -26,7 +26,7 @@ public static class RateLimitSetup
             {
                 if (ctx.Lease.TryGetMetadata(MetadataName.RetryAfter, out var retryAfter))
                 {
-                    ctx.HttpContext.Response.Headers.RetryAfter = ((int)Math.Ceiling(retryAfter.TotalSeconds)).ToString(System.Globalization.CultureInfo.InvariantCulture);
+                    ctx.HttpContext.Response.Headers.RetryAfter = ResultHttp.RetryAfterSeconds(retryAfter);
                 }
 
                 // No body written here: UseStatusCodePages turns the empty 429 into ProblemDetails.

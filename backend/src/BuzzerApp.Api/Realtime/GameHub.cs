@@ -26,10 +26,11 @@ public sealed class GameHub(RoundService rounds) : Hub<IGameClient>
             await Groups.AddToGroupAsync(Context.ConnectionId, GameGroups.Admins);
         }
 
-        await Clients.Caller.RoundUpdated(rounds.GetPublicSnapshot());
+        var (publicSnapshot, adminSnapshot) = rounds.GetSnapshots();
+        await Clients.Caller.RoundUpdated(publicSnapshot);
         if (isAdmin)
         {
-            await Clients.Caller.AdminRoundUpdated(rounds.GetAdminSnapshot());
+            await Clients.Caller.AdminRoundUpdated(adminSnapshot);
         }
 
         await base.OnConnectedAsync();

@@ -1,3 +1,5 @@
+using BuzzerApp.Core.Domain;
+
 namespace BuzzerApp.Core.Rounds;
 
 /// <summary>
@@ -273,6 +275,18 @@ public sealed class BuzzRound
         }
     }
 
+    /// <summary>
+    /// Both snapshots of one and the same state. Two separate calls can straddle a change, which would send admins a
+    /// newer state than the players in the same broadcast; the lock is re-entrant, so taking it here covers both.
+    /// </summary>
+    public (PublicRoundSnapshot Public, AdminRoundSnapshot Admin) GetSnapshots()
+    {
+        lock (_gate)
+        {
+            return (GetPublicSnapshot(), GetAdminSnapshot());
+        }
+    }
+
     /// <summary>Returns each locked round's record exactly once (oldest first), then null.</summary>
     public LockedRoundRecord? TakeLockedRecord()
     {
@@ -332,11 +346,11 @@ public sealed class BuzzRound
     // hold, so a change without a bump could be dropped as stale.
     private void BumpVersion() => _version++;
 
-    private static RoundTeamOutcome ToOutcome(TeamTurnStatus status) => status switch
+    private static TeamOutcome ToOutcome(TeamTurnStatus status) => status switch
     {
-        TeamTurnStatus.Current => RoundTeamOutcome.Current,
-        TeamTurnStatus.Passed => RoundTeamOutcome.Passed,
-        TeamTurnStatus.Waiting => RoundTeamOutcome.Unreached,
+        TeamTurnStatus.Current => TeamOutcome.Current,
+        TeamTurnStatus.Passed => TeamOutcome.Passed,
+        TeamTurnStatus.Waiting => TeamOutcome.Unreached,
         _ => throw new ArgumentOutOfRangeException(nameof(status), status, null),
     };
 

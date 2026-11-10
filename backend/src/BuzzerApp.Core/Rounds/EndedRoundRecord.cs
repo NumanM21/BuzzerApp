@@ -1,3 +1,5 @@
+using BuzzerApp.Core.Domain;
+
 namespace BuzzerApp.Core.Rounds;
 
 /// <summary>
@@ -9,16 +11,4 @@ public sealed record EndedRoundRecord(
     DateTimeOffset EndedAt,
     IReadOnlyList<TeamOutcomeEntry> TeamOutcomes);
 
-public sealed record TeamOutcomeEntry(int TeamId, RoundTeamOutcome Outcome);
-
-public enum RoundTeamOutcome
-{
-    /// <summary>Had the turn when the round ended (typically answered correctly).</summary>
-    Current,
-
-    /// <summary>Had a turn and passed it on.</summary>
-    Passed,
-
-    /// <summary>Queued but the turn never reached them.</summary>
-    Unreached,
-}
+public sealed record TeamOutcomeEntry(int TeamId, TeamOutcome Outcome);
