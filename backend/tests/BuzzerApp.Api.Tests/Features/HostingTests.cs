@@ -111,8 +111,34 @@ public sealed class HostingTests : IDisposable
         await AssertNotFoundProblemAsync(response);
     }
 
+    [Theory]
+    [InlineData("/apiary")]
+    [InlineData("/hubsandspokes/42")]
+    public async Task A_client_route_that_only_starts_with_the_letters_api_or_hubs_still_serves_the_app(string path)
+    {
+        var response = await Anonymous().GetAsync(path);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains(IndexMarker, await response.Content.ReadAsStringAsync());
+    }
+
     [Fact]
-    public async Task The_catch_alls_do_not_shadow_real_api_routes()
+    public async Task A_real_route_keeps_its_own_answers_for_a_wrong_method_content_type_or_missing_body()
+    {
+        // B8's first version answered all three with the catch-all's 404, which hid the real reason from the caller.
+        var player = await _factory.RegisterNewPlayerAsync();
+
+        var wrongMethod = await player.Client.DeleteAsync("/api/session/me");
+        var wrongContentType = await player.Client.PostAsync("/api/session/signin", new StringContent("hello", System.Text.Encoding.UTF8, "text/plain"));
+        var missingBody = await player.Client.PostAsync("/api/session/signin", content: null);
+
+        Assert.Equal(HttpStatusCode.MethodNotAllowed, wrongMethod.StatusCode);
+        Assert.Equal(HttpStatusCode.UnsupportedMediaType, wrongContentType.StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, missingBody.StatusCode);
+    }
+
+    [Fact]
+    public async Task The_not_found_answer_does_not_shadow_real_api_routes()
     {
         var response = await Anonymous().GetAsync("/api/event");
 

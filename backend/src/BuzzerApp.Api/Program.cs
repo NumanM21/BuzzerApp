@@ -30,7 +30,7 @@ builder.Services.AddAppRateLimiting(builder.Configuration);
 builder.Services.AddSingleton<SignInThrottle>();
 builder.Services.AddSingleton<PinDecoy>();
 builder.Services.AddRealtime();
-builder.Services.AddAppHealthChecks();
+builder.Services.AddAppHosting();
 builder.Services.AddProblemDetails();
 
 // By default Development makes a bad request (missing or malformed body) throw, which UseExceptionHandler then
@@ -57,9 +57,10 @@ if (!app.Environment.IsDevelopment())
 
 app.UseFrontendFiles();
 
-// Explicit, and after the static files: the implicit UseRouting runs first, and a static-file middleware skips any
-// request that already has an endpoint, so a catch-all route would hide every built asset.
+// Explicit, so the order is visible: built files are served before routing, and a request that matches no route is
+// answered (the React app or a 404) before authorization can turn it into a 401.
 app.UseRouting();
+app.UseFallbackForUnmatchedRequests();
 
 app.UseAuthentication();
 app.UseAuthorization();
