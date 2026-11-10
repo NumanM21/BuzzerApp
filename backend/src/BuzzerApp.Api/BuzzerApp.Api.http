@@ -96,3 +96,155 @@ POST {{host}}/api/session/signout
 
 ### Me after sign-out. Expect 401 (not a redirect)
 GET {{host}}/api/session/me
+
+# ======================= B4: teams + players =======================
+# The cookie jar is shared, so "sign in as X" changes who every later request acts as. Each section says who it expects.
+# @playerId / @otherPlayerId are Alice's and another player's ids from the register requests above; adjust if yours differ
+# (GET /api/players as admin lists them). Team ids 1-6 are the seeded teams if you started from a fresh database.
+@playerId = 2
+@otherPlayerId = 3
+
+### ---- As a PLAYER: sign in as Alice (registered above) ----
+POST {{host}}/api/session/signin
+Content-Type: application/json
+
+{ "joinCode": "{{joinCode}}", "realName": "alice smith", "pin": "4321" }
+
+### Teams as a player. Expect 200, members have displayName; realName is null except on Alice's own row
+GET {{host}}/api/teams
+
+### Edit my own names. Expect 200 with the new display name
+PATCH {{host}}/api/players/me
+Content-Type: application/json
+
+{ "displayName": "Ally Cat" }
+
+### Edit nothing. Expect 400
+PATCH {{host}}/api/players/me
+Content-Type: application/json
+
+{}
+
+### Take someone else's display name (use any existing one, any case). Expect 409
+PATCH {{host}}/api/players/me
+Content-Type: application/json
+
+{ "displayName": "TEST BOSS" }
+
+### Player on admin routes. Expect 403 for each of these seven
+GET {{host}}/api/players
+
+###
+POST {{host}}/api/teams
+Content-Type: application/json
+
+{ "name": "Sneaky", "colorKey": "teal", "iconKey": "star" }
+
+###
+PATCH {{host}}/api/teams/1
+Content-Type: application/json
+
+{ "name": "Sneaky" }
+
+###
+DELETE {{host}}/api/teams/1
+
+###
+PATCH {{host}}/api/players/{{otherPlayerId}}
+Content-Type: application/json
+
+{ "displayName": "Hacked" }
+
+###
+PATCH {{host}}/api/players/{{playerId}}/team
+Content-Type: application/json
+
+{ "teamId": 2 }
+
+###
+POST {{host}}/api/players/{{playerId}}/promote
+
+### ---- As the ADMIN ----
+POST {{host}}/api/session/signin
+Content-Type: application/json
+
+{ "joinCode": "{{joinCode}}", "realName": "{{adminName}}", "pin": "{{adminPin}}" }
+
+### Teams as admin. Expect every member's realName filled in
+GET {{host}}/api/teams
+
+### All players with real names and roles
+GET {{host}}/api/players
+
+### Create a team. Expect 201 and it appears last in GET /api/teams
+POST {{host}}/api/teams
+Content-Type: application/json
+
+{ "name": "Tea Party", "colorKey": "teal", "iconKey": "star" }
+
+### Same name again (any case). Expect 409
+POST {{host}}/api/teams
+Content-Type: application/json
+
+{ "name": "tea party", "colorKey": "orange", "iconKey": "star" }
+
+### Existing colour. Expect 409
+POST {{host}}/api/teams
+Content-Type: application/json
+
+{ "name": "Other Team", "colorKey": "red", "iconKey": "star" }
+
+### Bad input (short name, upper-case colour, empty icon). Expect 400 listing all three
+POST {{host}}/api/teams
+Content-Type: application/json
+
+{ "name": "A", "colorKey": "Teal", "iconKey": "" }
+
+### Rename. Expect 200 (set the id to the new team's id from the create response)
+PATCH {{host}}/api/teams/7
+Content-Type: application/json
+
+{ "name": "Tea Time" }
+
+### Rename to another team's name. Expect 409
+PATCH {{host}}/api/teams/7
+Content-Type: application/json
+
+{ "name": "smurfs" }
+
+### Delete a team that has players (team 1 has Alice). Expect 409
+DELETE {{host}}/api/teams/1
+
+### Delete the empty team you created. Expect 204; a second delete gives 404
+DELETE {{host}}/api/teams/7
+
+### Admin edits a player's names. Expect 200
+PATCH {{host}}/api/players/{{playerId}}
+Content-Type: application/json
+
+{ "displayName": "Alice Renamed" }
+
+### Move a player to another team. Expect 200 and the new team in GET /api/teams
+PATCH {{host}}/api/players/{{playerId}}/team
+Content-Type: application/json
+
+{ "teamId": 2 }
+
+### Move to a team that doesn't exist. Expect 400 (teamId)
+PATCH {{host}}/api/players/{{playerId}}/team
+Content-Type: application/json
+
+{ "teamId": 9999 }
+
+### Put an admin on a team (the seeded admin is usually player 1). Expect 400
+PATCH {{host}}/api/players/1/team
+Content-Type: application/json
+
+{ "teamId": 2 }
+
+### Promote a player. Expect 200, role "admin", no team; they leave their team's member list.
+### Their old cookie still says Player until they sign in again (known limit).
+POST {{host}}/api/players/{{otherPlayerId}}/promote
+
+### Unknown player. Expect 404
+POST {{host}}/api/players/999999/promote
