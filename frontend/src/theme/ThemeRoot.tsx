@@ -42,7 +42,7 @@ function LoadThemePack({ themeKey, scope, children }: Required<ThemeRootProps>) 
 }
 
 // Unstyled on purpose: no pack is loaded yet, so there is nothing to style it with.
-function ThemeSplash() {
+export function ThemeSplash() {
   return <div role="status">Loading…</div>;
 }
 
