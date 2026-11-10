@@ -2,7 +2,7 @@
 
 > **Audience:** AI workers implementing one step each in a fresh session, and the developer who starts and reviews them.
 > Adds implementation detail to `docs/PlanMVP.md` §10 Milestone F. **PlanMVP wins on product decisions; this file wins on frontend implementation detail.**
-> Written 10 Nov 2026. **F0, F1 and F2 are done: start at F3.**
+> Written 10 Nov 2026. **F0, F1, F2 and F3 are done: start at F4.**
 >
 > The backend is finished and is not changed by these steps. If a step seems to need a backend change, stop and ask the developer.
 
@@ -11,7 +11,7 @@
 | F0 | `frontend-f0` — **DONE** | **Opus 5.5** | Packages, tooling, folders, composition root, MVVM base, theme contract + `default` pack + `/dev/theme`, guard tests, CI. Sets the patterns every later step copies |
 | F1 | `frontend-f1` — **DONE** | Sonnet 5.5 | `arcade-2026` theme pack, spare team colours, `docs/ThemePacks.md` (how to add next year's pack) |
 | F2 | `frontend-f2` — **DONE** | Sonnet 5.5 | API client, wire types, one API class per feature, stores, MSW handlers, test factories |
-| F3 | `frontend-f3` | Sonnet 5.5 | `/join` (new player / sign in), route guards, layout shell + navigation |
+| F3 | `frontend-f3` — **DONE** | Sonnet 5.5 | `/join` (new player / sign in), route guards, layout shell + navigation |
 | F4 | `frontend-f4` | **Opus 5.5** | SignalR connection, round store, server clock, session and connection lifecycle, buzzer state rule |
 | F5 | `frontend-f5` | Sonnet 5.5 | `/play`: buzzer and team queue |
 | F6 | `frontend-f6` | Sonnet 5.5 | `/teams`: team cards, edit names, rename, move, make admin, create and delete team |
@@ -428,7 +428,39 @@ Teams and players change every year: 2026 has six teams; another year may have t
 
 ---
 
-## F3 — Join, sign in, guards and the shell
+## F3 — Join, sign in, guards and the shell — DONE
+
+> **Done 10 Nov 2026. Kept for reference; do not redo.**
+>
+> **What exists** (`frontend/src/`)
+> - `domain/`: `paths.ts` (`appPaths`, every route once), `routeAccess.ts` (`Role`, `SessionStatus`, `RouteAccess`, `decideRoute`, `startPathFor`: the guard rules as pure functions), `navigation.ts` (`navItemsFor(role)`), `validation.ts` (`validateJoinForm` and the per-field checks, `sanitizePin`), `text.ts` (`formatCount`, `describeRateLimit`, `isRealNameTakenMessage`), `joinCodeMemory.ts` (the interface). All tested.
+> - `mvvm/`: `Countdown` (whole seconds left until a deadline, for "try again in N seconds"; derived from the clock, so a throttled phone timer still shows the right number) and `isApiError` (see deviations). Tested.
+> - `app/`: `BrowserJoinCodeMemory` (`localStorage`, every failure swallowed), `RouteGuardViewModel` + `guards.tsx` (`AnonymousOnlyGuard`, `SignedInGuard`, `PlayerGuard`, `AdminGuard`, `StartRedirect`), `routes.ts` rewritten (below). `AppServices` has `joinCodeMemory` (`createAppServices({ joinCodeMemory })`).
+> - `features/join/`: `JoinViewModel` (+ test), `JoinPage` (+ MSW integration test). `features/shell/`: `ShellViewModel` (+ test), `ShellLayout`. Placeholder pages: `features/play/PlayPage`, `teams/TeamsPage`, `scores/ScoresPage`, `admin/AdminPage`, `admin/AdminScoresPage`, `admin/AdminEventPage`. `features/home/HomePage` is deleted.
+> - `components/`: `AppLayout` (header: event name, display name, sign out; bottom navigation), `TeamPicker` (radio cards for one team; any number of teams), `PlaceholderPage`; each with a test.
+> - `test/`: `renderApp(route, services)` (the whole app and the real route table in a memory router; resolves after the first render), `fakes/FakeJoinCodeMemory`; `TestFakes.joinCodeMemory`; `FakeEventApi.joinTeamCodes` (the code of every lookup).
+>
+> **Route table** (`app/routes.ts`): `/join` under `AnonymousOnlyGuard`; one `SignedInGuard` whose child is `ShellLayout` (header and navigation, built once and kept while moving between screens), containing `/teams`, `/scores`, `/play` under `PlayerGuard`, and `/admin`, `/admin/scores`, `/admin/event` under `AdminGuard`; `/dev/theme` (dev only) outside every guard; last, `*` → `StartRedirect`, which also covers `/`. Redirects use `replace`, so the back button never returns to a screen the person was turned away from.
+>
+> **Deviations and decisions**
+> - **View models can't `instanceof ApiError`** (the lint rule lets them import API *types* only), so `mvvm/isApiError` checks `error.name === 'ApiError'` (the class sets it). Use it in every view model that needs `kind` or `fieldErrors`.
+> - **`SessionStatus` now lives in `domain/routeAccess.ts`**; `SessionStore` re-exports it, so existing imports still work.
+> - **`components/AppLayout` imports `NavLink` from `react-router`.** The layer table doesn't list the router for components, and the lint rule doesn't forbid it; a navigation item has to be a real link (back button, shareable address), so this is the one allowed use. Components still import no store, API class or view model.
+> - **Admin "Scores" goes to `/admin/scores`**, not `/scores`: that is where an admin scores. An admin reaches the plain leaderboard only by address until F7 decides whether to link it from there.
+> - **The 409 "Sign in instead" is decided by the server's sentence** (`isRealNameTakenMessage` looks for "real name"): the server sends one title for both names and says which only in `detail`. Any other 409 shows the server's text on the form without the button. If the backend's wording changes, that one function and its test change.
+> - **Network failures show `ApiError`'s own message** ("Could not reach the server. Check your connection and try again."), not the brief's "Can't reach the server…": one message with one home.
+> - **A remembered code also fetches the teams on arrival**, like a `?code=` does; the code is remembered when the teams for it load, and again after a successful register or sign-in. A code is looked up once (an unknown code is not asked again until it changes). While the box holds a code that hasn't been looked up, the picker shows nothing rather than another code's teams, and a chosen team that the new list doesn't have is dropped.
+> - **A 429 on the team lookup also counts down** (its own `Countdown`; Continue is disabled meanwhile), as submit does.
+> - The three fields real name, PIN and code are shared between the two tabs, so "Sign in instead" keeps what was typed. Editing a field clears that field's error and the form's message, but a rate-limit message stays until its countdown ends.
+> - Validation messages written in the app end without a full stop; the server's own sentences keep theirs. "That join code is not recognised" and "Too many attempts. Try again in N seconds" are exactly the brief's texts.
+> - **Checked:** lint, build, tests (567). **Not checked:** the brief's "Check" against the real backend and on a phone, and any look at 360 px: no browser was available. In particular the inputs' full-width and 44 px height (they override Fluent's own `max-width` on `Input`) and the bottom navigation's layout are the developer's visual check.
+> - **The build's chunk-size notice:** F3's form controls took the single bundle from 488 kB to 666 kB, past Vite's 500 kB notice. `vite.config.ts` now puts `@fluentui/*` in its own chunk (`build.rolldownOptions.output.codeSplitting`): 277 kB + 389 kB, no notice, and a redeploy of the app leaves a phone's cached Fluent file valid. No limit was raised.
+>
+> **Later steps must know**
+> - **Every signed-in screen is already inside `AppLayout`**, which provides the `<main>`: a page renders its content and an `<h1>`, not another `<main>`. The page's width, padding and layout are the page's own.
+> - **F5–F8 replace the placeholder pages in place** (same file, same exported name, so `routes.ts` doesn't change). Delete `components/PlaceholderPage` when F8 has replaced the last user.
+> - **F4:** the shell doesn't own a connection. Start it where `session.status` becomes `signedIn` (the shell is the natural place: it exists exactly while someone is signed in), and stop it on sign-out.
+> - **Tests of a whole screen:** use `renderApp(route, services)` to land on a screen through the real guards; with MSW-backed services (`createAppServices`) wait for the page's heading before querying, because the start-up calls are real requests.
 
 **Model:** Sonnet 5.5. **Read also:** PlanMVP D18, D19, D21, D22; Appendix A "Event" and "Session".
 
@@ -876,3 +908,8 @@ End-to-end tests are a later addition (PlanMVP §11). Each step appends the scen
 | F2 | Start the app with the API stopped, then start the API: does it show the default theme at once and switch to the event's theme without a manual reload? | Today the event is loaded once at start and not retried; only a real browser and a real server restart show whether that is acceptable (F9 decides) |
 | F2 | Sign in on a phone, delete the session cookie (or restart the API with a new key), tap anything: the app returns to the join page | The cookie handling and the 401 rule (`onSessionExpired`) are tested with MSW, but only a browser proves the real cookie behaves the same |
 | F2 | Sign out, then a different person signs in on the same phone: no team list or score of the first person is visible, not even for a moment | The stores reset on a change of person (unit-tested); a browser shows there is no flash from React's own rendering |
+| F3 | Register → refresh the page → still signed in, on `/play` | The cookie, the proxy and the start-up `/me` call together; MSW fakes all three |
+| F3 | Two phones register the same display name at the same moment: one lands on `/play`, the other sees the 409 message under the form | A real unique-index race against the real database |
+| F3 | Sign out, then the browser's back button: the join page, never a signed-in screen, not even for a moment | Real history and a real cookie; the memory router in the tests has neither |
+| F3 | `/join` at 360 px with 2 and with 13 teams, and with a 24-character team name: no horizontal scroll, inputs full width and at least 44 px tall, the bottom navigation never covers the last field | Layout, Fluent's own input styles and a phone's on-screen keyboard only exist in a real browser |
+| F3 | Six wrong PINs in a row for one name: the sixth attempt is refused with a pause, the message counts down and the button comes back | The real rate limiter and real timers (the tests use fake ones) |
