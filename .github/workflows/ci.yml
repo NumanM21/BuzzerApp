@@ -9,13 +9,16 @@ on:
 jobs:
   backend:
     runs-on: ubuntu-latest
+    # The whole suite takes about a minute. Without a limit a hung test would hold the job for GitHub's default 6 hours.
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
       # Reads the SDK version from global.json so CI and local builds match.
       - uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
-      - run: dotnet test BuzzerApp.slnx --configuration Release
+      # One line per test, so a stall shows where it is; a test that hangs is stopped and named after 2 minutes.
+      - run: dotnet test BuzzerApp.slnx --configuration Release --logger "console;verbosity=normal" --blame-hang-timeout 2m --blame-hang-dump-type none
 
   frontend:
     runs-on: ubuntu-latest
