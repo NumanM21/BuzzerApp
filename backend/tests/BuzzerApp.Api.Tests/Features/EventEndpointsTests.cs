@@ -92,11 +92,13 @@ public class EventEndpointsTests(ApiFactory factory)
     }
 
     [Fact]
-    public async Task An_unknown_route_is_401_when_anonymous_because_the_fallback_policy_makes_everything_private()
+    public async Task An_unknown_api_route_is_404_when_anonymous_too()
     {
+        // Before B8 this was 401 (the fallback policy also covers unmatched paths). The /api catch-all opts out, so a
+        // typo'd URL reads as "not found" for everyone instead of a misleading "sign in".
         var response = await factory.CreateBrowser().GetAsync("/api/nope");
 
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
     [Fact]
