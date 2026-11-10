@@ -27,35 +27,80 @@ public sealed class EventSeeder(
         await SeedMissingAdminsAsync(ev, ct);
     }
 
+    /// <summary>
+    /// The configured <b>year</b> says which event this is (D15: one per year); the join code is only its current
+    /// password. Looking the event up by join code, as the first version did, meant that changing a leaked code created
+    /// a second, empty event and deactivated the real one, and that reusing last year's code silently reused last year's
+    /// event. The year's event is created if missing, follows the configured join code, and is the active one.
+    /// </summary>
     private async Task<Event> GetOrCreateEventAsync(EventSeedOptions seed, CancellationToken ct)
     {
         var joinCode = seed.JoinCode.Trim();
-        var existing = await db.Events.FirstOrDefaultAsync(e => e.JoinCode == joinCode, ct);
-        if (existing is not null)
+
+        var sameYear = await db.Events.Where(e => e.Year == seed.Year).OrderBy(e => e.Id).ToListAsync(ct);
+        if (sameYear.Count > 1)
         {
-            return existing;
+            // Only possible if rows were added by hand; guessing which one is meant could seed admins into the wrong event.
+            throw new InvalidOperationException(
+                $"There are {sameYear.Count} events for {seed.Year}. The seeder identifies an event by its year, so it can't tell which one the configuration means.");
         }
 
-        // The unique index allows one active row, and Postgres checks it per statement, so the old
-        // event must be deactivated before the new one is inserted, inside one transaction.
-        await using var tx = await db.Database.BeginTransactionAsync(ct);
-        await db.Events.Where(e => e.IsActive).ExecuteUpdateAsync(s => s.SetProperty(e => e.IsActive, false), ct);
-
-        var created = new Event
+        var codeOwnerYear = await db.Events
+            .Where(e => e.JoinCode == joinCode && e.Year != seed.Year)
+            .Select(e => (int?)e.Year)
+            .FirstOrDefaultAsync(ct);
+        if (codeOwnerYear is not null)
         {
-            Name = seed.Name.Trim(),
-            Year = seed.Year,
-            JoinCode = joinCode,
-            ThemeKey = seed.ThemeKey.Trim(),
-            IsActive = true,
-            CreatedAt = time.GetUtcNow(),
-        };
-        db.Events.Add(created);
+            // Join codes are unique across events; say so here rather than let the insert fail on the index.
+            throw new InvalidOperationException(
+                $"Event:JoinCode is already the join code of the {codeOwnerYear} event. Choose a new code for {seed.Year}.");
+        }
+
+        var ev = sameYear.SingleOrDefault();
+        if (ev is not null && ev.IsActive && ev.JoinCode == joinCode)
+        {
+            return ev;
+        }
+
+        // The unique index allows one active row, and Postgres checks it per statement, so any other event must be
+        // deactivated before this one is inserted or activated, inside one transaction.
+        await using var tx = await db.Database.BeginTransactionAsync(ct);
+        await db.Events.Where(e => e.IsActive && e.Year != seed.Year)
+            .ExecuteUpdateAsync(s => s.SetProperty(e => e.IsActive, false), ct);
+
+        if (ev is null)
+        {
+            ev = new Event
+            {
+                Name = seed.Name.Trim(),
+                Year = seed.Year,
+                JoinCode = joinCode,
+                ThemeKey = seed.ThemeKey.Trim(),
+                IsActive = true,
+                CreatedAt = time.GetUtcNow(),
+            };
+            db.Events.Add(ev);
+            logger.LogInformation("Seeded event {EventName} ({Year}) and made it the active event", ev.Name, ev.Year);
+        }
+        else
+        {
+            // Name and theme are left alone: only the two things the configuration must control are applied.
+            if (ev.JoinCode != joinCode)
+            {
+                ev.JoinCode = joinCode;
+                logger.LogInformation("The join code of the {Year} event was changed to the configured one", ev.Year);
+            }
+
+            if (!ev.IsActive)
+            {
+                ev.IsActive = true;
+                logger.LogInformation("Made the {Year} event the active event", ev.Year);
+            }
+        }
+
         await db.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
-
-        logger.LogInformation("Seeded event {EventName} ({Year}) and made it the active event", created.Name, created.Year);
-        return created;
+        return ev;
     }
 
     private async Task SeedTeamsIfNoneAsync(Event ev, EventSeedOptions seed, CancellationToken ct)
