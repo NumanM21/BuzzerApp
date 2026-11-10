@@ -2,19 +2,19 @@
 
 > **Audience:** AI workers implementing one step each (usually in a fresh session).
 > Adds implementation detail to `docs/PlanMVP.md` §10 Milestone B. **PlanMVP wins on product decisions; this file wins on implementation detail.**
-> Written 9 Nov 2026. **B0 and B1 are done and merged into `main`; B2 is done on branch `backend-b2` (each DONE section records what was actually produced).** Start at B3.
+> Written 9 Nov 2026. **B0 and B1 are done and merged into `main`; B2 is done on branch `backend-b2` and B3 on `backend-b3-auth` (each DONE section records what was actually produced).** Start at B4.
 
 | Step | Branch | Suggested model | Why |
 |---|---|---|---|
 | B0 | `backend-b0-cleanup` — **DONE, merged** | Sonnet | Mechanical cleanup + CI |
 | B1 | `backend-b1-core` — **DONE, merged** | Opus | State machine + concurrency; its API shape fixes B6 |
 | B2 | `backend-b2` — **DONE** | Sonnet | Standard EF Core; traps listed below |
-| B3 | `feature/b3-auth` | Sonnet + review | Security-sensitive |
-| B4 | `feature/b4-teams-players` | Sonnet | CRUD |
-| B5 | `feature/b5-scores` | Sonnet | CRUD + `ScoreMath` |
-| B6 | `feature/b6-realtime` | **Opus** (or Sonnet + Opus review) | Singleton + clock + SignalR + ordered persistence; bugs only show up under timing |
-| B7 | `feature/b7-archive` | Sonnet | Pure builder + 2 endpoints |
-| B8 | `feature/b8-hosting` | Sonnet | Static file hosting |
+| B3 | `backend-b3-auth` — **DONE** | Sonnet + review | Security-sensitive |
+| B4 | `backend/b4-teams-players` | Sonnet | CRUD |
+| B5 | `backend/b5-scores` | Sonnet | CRUD + `ScoreMath` |
+| B6 | `backend/b6-realtime` | **Opus** (or Sonnet + Opus review) | Singleton + clock + SignalR + ordered persistence; bugs only show up under timing |
+| B7 | `backend/b7-archive` | Sonnet | Pure builder + 2 endpoints |
+| B8 | `backend/b8-hosting` | Sonnet | Static file hosting |
 
 ---
 
@@ -22,7 +22,7 @@
 
 - Read `CLAUDE.md` and `docs/PlanMVP.md` first, then the brief for your step below.
 - The developer's prompt saying "do B<n>" counts as "go". Don't stop to propose a file list unless something in the brief is unclear or looks wrong. If it does, say so and propose an alternative. Never silently deviate.
-- Branching: B0 is merged, so `main` has CI and the `backend` + `frontend` checks are required by the `main` ruleset (PR, 1 approval, rebase merge only). Every step branches `feature/b<n>-<short-name>` off the latest `origin/main` (`git fetch`, then branch from `origin/main`). A step's PR can't merge until both checks are green. Make small commits, one logical change each. Don't push or open a PR unless asked.
+- Branching: B0 is merged, so `main` has CI and the `backend` + `frontend` checks are required by the `main` ruleset (PR, 1 approval, rebase merge only). Every step branches `backend/b<n>-<short-name>` off the latest `origin/main` (`git fetch`, then branch from `origin/main`). A step's PR can't merge until both checks are green. Make small commits, one logical change each. Don't push or open a PR unless asked.
 - **Done** = `dotnet build BuzzerApp.slnx` + `dotnet test BuzzerApp.slnx` pass with **zero warnings** (warnings are errors from B0 on), plus the step's own **Check**. Finish with a short summary of what was built and why (a few paragraphs).
 - **Mark the step done in this file as your last commit** (no need to be asked). In the table, change the branch cell to `<branch> — **DONE**`. Add ` — DONE` to the step's section heading, add a short "Kept for reference; **do not redo.**" note listing what exists now, and record every deviation from the brief and anything later steps must know. If something you learned affects a later step, add it to that step's brief too. Update the "Start at B<n>" line at the top. Commit it as `Mark B<n> done in BackendSteps`.
 - Package versions: don't guess. Look up the latest stable version (e.g. `curl -s https://api.nuget.org/v3-flatcontainer/<lowercase-id>/index.json`; the last stable entry is the newest), add a `<PackageVersion>` to the root `Directory.Packages.props`, and reference the package in the csproj **without** a `Version` attribute (central package management is on, so a `Version` there is an error). Confirm it restores and builds.
@@ -149,7 +149,26 @@ Original brief:
 
 ---
 
-## B3 — Auth + session
+## B3 — Auth + session — DONE
+
+Kept for reference; **do not redo.** What exists now, including where it differs from the original brief:
+
+- **`Api/Common/`:** `AuthSetup` (cookie scheme, `Admin` policy, fallback policy, `AuthPolicies` / `AppClaims` constants), `CurrentUser` (`ICurrentUser`, scoped; also `CreatePrincipal`), `Validation` (class `ValidationErrors`, a chainable collector: `PersonName`, `TeamName`, `Pin`, `Required`, `Positive`, `ToResult()` → `Results.ValidationProblem`), `RateLimitSetup`, `DbErrors.IsUniqueViolation(out constraintName)` (the 23505 catch), `ActiveEvent.FindIdByJoinCodeAsync` (trim + case-insensitive match against the active event; null if wrong). B4/B5 reuse these.
+- **`Api/Features/Event/EventEndpoints`** and **`Features/Session/{SessionEndpoints, SignInThrottle, PinDecoy}`**. `Program.cs` now has exception handler → status-code pages → (https redirect outside Development) → authentication → authorization → rate limiter → endpoints, plus the camelCase enum converter. Cookie name `buzzer.auth`.
+- **Dev checks done with curl against the real DB** (the `.http` file lists every case): register 201 + cookie, duplicate real name / display name 409, bad code 404, bad team 400, invalid fields 400 (all fields listed), sign-in case-insensitive, wrong PIN and unknown name give the identical 401, the 6th sign-in for one name gives 429 + `Retry-After`, other names unaffected, `me` 401 after sign-out, anonymous routes 401 (no redirect). The 403 path could not be exercised yet because no admin route exists; B4 should check it.
+- **No automated tests were added.** The Api has no test project (PlanMVP D32: integration tests only if time allows), and the logic worth testing is in the endpoints.
+- **Deviation, branch name:** `backend-b3-auth` (already created by the developer), not `backend/b3-auth`.
+- **Deviation, PIN regex:** `^[0-9]{4}\z` instead of `^\d{4}$`. `\d` matches non-ASCII digits and `$` accepts a trailing newline.
+- **Deviation, extra rate limit:** `GET /api/event/teams?code=` uses the same 30/min-per-IP policy (`RateLimitPolicies.JoinCode`) as register, because it is a join-code oracle.
+- **Join code errors differ by endpoint on purpose:** register and `event/teams` return 404 for a wrong code; sign-in returns the generic 401 (and spends the decoy hash) so it can't reveal anything.
+- **Sign-in throttle:** 5 attempts / 5 min per normalized real name, in memory (resets on restart), counted for unknown names too and for successful attempts. Side effect to accept: anyone can lock out a specific real name for 5 minutes by spamming it.
+- **`PinDecoy`** (singleton) verifies against a random hash when the name is unknown so timing doesn't reveal which names exist.
+- **Fallback authorization policy requires a signed-in user**, so every endpoint is private unless it calls `AllowAnonymous()`. `MapOpenApi()` already does.
+- **Known limit (as briefed):** a player promoted to admin keeps the `Player` role claim until they sign in again.
+- **Namespace gotcha for B4+:** the folder `Features/Event` makes `BuzzerApp.Api.Features.Event` a namespace, so inside any `BuzzerApp.Api.Features.*` namespace the simple name `Event` means that namespace, not the entity. Use `var`, or alias `using EventEntity = BuzzerApp.Core.Domain.Event;`.
+
+Original brief:
+
 
 - **`Common/`**
   - `AuthSetup.cs`: cookie scheme, the `Admin` authorization policy (`RequireRole("Admin")`) and a fallback policy that requires an authenticated user. Mark public endpoints `AllowAnonymous`.
@@ -178,6 +197,7 @@ Original brief:
 
 - `Features/Teams/TeamEndpoints.cs` (§8.3) and `Features/Players/PlayerEndpoints.cs` (§8.4): route group, request/response records and handlers in one file per feature.
 - Everything is scoped to the caller's `EventId` claim. A resource from another event → 404.
+- **From B3:** use `ICurrentUser`, `ValidationErrors`, `DbErrors.IsUniqueViolation` and `ActiveEvent`; the admin policy is `AuthPolicies.Admin` (`.RequireAuthorization(AuthPolicies.Admin)` on the admin groups). Check that a signed-in non-admin gets 403 (B3 couldn't test it). See B3's namespace gotcha about `Event`.
 - `GET /api/teams`: teams by `SortOrder`, members by display name. `realName` is included only for admins and on the caller's own row (JSON `null` otherwise).
 - `POST /api/teams`: duplicate name or colour → 409. `PATCH`: rename via `Team.Rename`, duplicate → 409.
 - `DELETE /api/teams/{id}` → 409 if the team has players, score rows **or buzz records** (FK `Restrict` would throw otherwise).
@@ -240,5 +260,6 @@ Original brief:
 - Unknown `/api/**` and `/hubs/**` paths must return a **404 ProblemDetails**, not `index.html`. Map an explicit catch-all for those prefixes ahead of the SPA fallback.
 - `/healthz`: `AddHealthChecks().AddDbContextCheck<AppDbContext>()` (package `Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore`), anonymous.
 - Add `backend/src/BuzzerApp.Api/wwwroot/` to `.gitignore` (built frontend output).
-- Note for R2 (no change now): on Azure App Service, set `ASPNETCORE_FORWARDEDHEADERS_ENABLED=true` so the per-IP registration limit sees real client IPs, not the proxy.
+- **From B3:** the fallback authorization policy applies to every endpoint, so `/healthz` and any SPA fallback (`MapFallbackToFile`) must be marked `AllowAnonymous()` or they return 401. Static files (`UseStaticFiles`) are not affected.
+- Note for R2 (no change now): on Azure App Service, the auth cookie is encrypted with Data Protection keys: if the keys aren't persisted (shared storage) or the app scales out, every restart/instance signs everyone out. Persist them for the event weekend. Also set `ASPNETCORE_FORWARDEDHEADERS_ENABLED=true` so the per-IP registration limit sees real client IPs, not the proxy.
 - **Check:** `cd frontend && npm run build`, copy `dist/*` into `Api/wwwroot`, then `dotnet run`. `/` serves the app, `/some/client/route` serves the app, `/api/nope` returns a 404 ProblemDetails, and `/healthz` reports Healthy.
