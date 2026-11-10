@@ -17,7 +17,8 @@ Live buzzer + scoreboard web app for a yearly family games night. .NET 10 backen
 - `backend/src/BuzzerApp.Core` — `Domain/` (POCO entities, no EF attributes), `Rounds/`, `Scoring/`, `Archive/`. **No** framework / EF Core / ASP.NET / SignalR references.
 - `backend/src/BuzzerApp.Infrastructure` — EF Core: `Persistence/` (DbContext, Configurations, Migrations), `Seeding/`. References Core only.
 - `backend/src/BuzzerApp.Api` — Minimal APIs (`Features/<Feature>/`), SignalR (`Realtime/`), auth etc. (`Common/`).
-- `backend/tests/BuzzerApp.Core.Tests` — xUnit.
+- `backend/tests/BuzzerApp.Core.Tests` — xUnit (pure logic, no I/O).
+- `backend/tests/BuzzerApp.Api.Tests` — xUnit + `WebApplicationFactory` against a real PostgreSQL started by Testcontainers (**needs Docker running**), plus unit tests for Api helpers. Every endpoint step adds tests here.
 - `frontend/src/` — `api/`, `realtime/`, `theme/` (packs), `features/<feature>/`, `components/`.
 
 ## Environment
@@ -31,7 +32,7 @@ Live buzzer + scoreboard web app for a yearly family games night. .NET 10 backen
 - Migrations: `dotnet tool restore`, then `dotnet ef migrations add <Name> --project backend/src/BuzzerApp.Infrastructure --startup-project backend/src/BuzzerApp.Api --output-dir Persistence/Migrations`
 - Frontend (`frontend/`): `npm run dev`, `npm run lint`, `npm run build`, `npx vitest run`
 
-A step is done only when these pass.
+A step is done only when these pass, including tests for any endpoints it adds.
 
 ## Must never happen
 - Trusting client-sent player/team IDs or timestamps for buzzing (use cookie claims + server arrival order).
