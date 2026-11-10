@@ -2,8 +2,10 @@ import { makeAutoObservable, observableRef } from 'mobx';
 import { ApiError } from '@/api/ApiError';
 import type { Me, RegisterRequest, SignInRequest } from '@/api/types';
 import type { SessionApi } from '@/api/SessionApi';
+import type { SessionStatus } from '@/domain/routeAccess';
 
-export type SessionStatus = 'unknown' | 'anonymous' | 'signedIn';
+// The type lives in domain/ because the guard rules there are written in terms of it.
+export type { SessionStatus };
 
 /**
  * Who is using this phone. `unknown` only until `restore()` has asked the server whether the cookie is still good.
