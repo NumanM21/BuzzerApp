@@ -78,6 +78,9 @@ const useStyles = makeStyles({
   heading: {
     margin: 0,
     fontFamily: appTokens.fontHeading,
+    // Explicit, or the browser's 1.5em default outgrows the inherited line height and a wrapped heading overlaps itself.
+    fontSize: tokens.fontSizeBase600,
+    lineHeight: tokens.lineHeightBase600,
   },
   // Columns appear as the screen widens, from one on a phone; nothing assumes a team count.
   grid: {
