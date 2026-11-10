@@ -11,6 +11,17 @@ export default defineConfig({
     // Vite 8 reads the `@/*` alias from tsconfig.app.json itself, so the alias is written in one place.
     tsconfigPaths: true,
   },
+  build: {
+    rolldownOptions: {
+      output: {
+        // Fluent is most of the app's weight and changes far less often than the app, so it gets its own file: a
+        // redeploy of the app leaves a phone's cached copy of it valid, and no single file passes the size notice.
+        codeSplitting: {
+          groups: [{ name: 'fluent', test: /node_modules[\\/]@fluentui[\\/]/ }],
+        },
+      },
+    },
+  },
   server: {
     proxy: {
       '/api': { target: apiOrigin },
