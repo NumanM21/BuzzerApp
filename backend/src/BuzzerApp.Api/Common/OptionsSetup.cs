@@ -40,6 +40,7 @@ public static partial class OptionsSetup
         services.AddOptions<RoundSettings>()
             .Bind(config.GetSection("Round"))
             .Validate(r => r.GraceWindow >= TimeSpan.Zero, "Round:GraceWindow must not be negative.")
+            .Validate(r => r.MaxRecordedBuzzes >= 0, "Round:MaxRecordedBuzzes must not be negative.")
             .ValidateOnStart();
 
         return services;
