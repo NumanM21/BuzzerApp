@@ -44,3 +44,5 @@ A step is done only when these pass, including tests for any endpoints it adds.
 - Seeding that overwrites admin edits on restart.
 - Caching `/api` or `/hubs` in a service worker.
 - Admin-only data (individual buzzes, future question answers) in the public snapshot.
+- Tests that hard-code the 2026 event (six teams, team names or colours, "the second seeded team"). Teams and players change every year: create the data a test needs or read it from the database, and use a `[Theory]` over several team/player counts where the count matters. Details: "Shared rules" in `docs/BackendSteps.md`.
+- A list with no deterministic order. Every list an endpoint, snapshot or archive returns has an explicit sort that ends in a unique tiebreaker (usually `Id`), unless the order is the data itself (the buzz queue, ledger order). Never rely on database row order or on enumerating a `Dictionary` / `HashSet`. Details: "Shared rules" in `docs/BackendSteps.md`.
