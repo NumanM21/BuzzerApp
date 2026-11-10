@@ -3,6 +3,8 @@ using System.Text.Json.Serialization;
 using BuzzerApp.Api.Common;
 using BuzzerApp.Api.Features.Event;
 using BuzzerApp.Api.Features.Session;
+using BuzzerApp.Api.Features.Teams;
+using BuzzerApp.Api.Realtime;
 using BuzzerApp.Infrastructure;
 using BuzzerApp.Infrastructure.Seeding;
 
@@ -24,6 +26,8 @@ builder.Services.AddAppAuth(builder.Environment);
 builder.Services.AddAppRateLimiting(builder.Configuration);
 builder.Services.AddSingleton<SignInThrottle>();
 builder.Services.AddSingleton<PinDecoy>();
+// B6 replaces this with the SignalR notifier.
+builder.Services.AddSingleton<IGameNotifier, NullGameNotifier>();
 builder.Services.AddProblemDetails();
 
 // By default Development makes a bad request (missing or malformed body) throw, which UseExceptionHandler then
@@ -60,6 +64,7 @@ if (app.Environment.IsDevelopment())
 
 app.MapEventEndpoints();
 app.MapSessionEndpoints();
+app.MapTeamEndpoints();
 
 app.Run();
 
