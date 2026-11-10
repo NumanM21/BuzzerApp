@@ -30,6 +30,11 @@
 - Build settings (`net10.0`, nullable, implicit usings, `TreatWarningsAsErrors`) live in the root `Directory.Build.props`. Don't repeat them in csproj files.
 - Use UTC everywhere: `TimeProvider.GetUtcNow()` (inject `TimeProvider`, never `DateTime.Now`). Npgsql rejects a `DateTimeOffset` with a non-zero offset for `timestamptz` columns.
 - Comments explain *why*, not *what*.
+- **Tests must not hard-code the 2026 event.** The number and names of teams, and the number of players, change every year (2026 has six teams; a later year may have fewer or more, and a different crowd). A test must pass for "several" teams, never for "exactly six".
+  - Never assert a team count of `6`, a team name such as `"Rage Quitters"`, a colour such as `"red"`, or "the second seeded team". Either **create what the test needs** (`admin.CreateTeamAsync()`, `factory.NewTeamIdAsync()`, `RegisterNewPlayerAsync()`), or **read the expected value from the database** (`factory.ActiveEventTeamsAsync()`, `factory.FirstTeamAsync()`, `factory.TeamNameAsync(id)`).
+  - Logic that depends on how many teams or players there are (queueing, locking when every team has buzzed, ranking, ties, totals, the archive) is tested with a `[Theory]` over several shapes, for example 2, 6, 13 and 30 teams (see `Shapes` in `BuzzRoundConcurrencyTests`), plus the edge cases that matter (one team, equal totals, a team with no players).
+  - Literal names are fine when the test supplies its own data (a Core roster built inside the test, a key-format example). They are not fine when they restate what the seed happens to contain.
+  - **Quick check for any step that touches teams or players:** temporarily change `Event:Teams` in `appsettings.json` to 3 teams, then to 8, and run the Api tests. They must still pass. Restore the file afterwards.
 
 ---
 
@@ -62,7 +67,7 @@ Kept for reference; **do not redo.** What exists now, including where it differs
 - `AdminRoundSnapshot` **repeats** the public fields instead of inheriting from `PublicRoundSnapshot`. SignalR serializes the runtime type, so inheritance could leak buzzes to players. Keep it that way.
 - `RoundSettings` is validated in the `BuzzRound` constructor (`GraceWindow >= 0`, `MaxRecordedBuzzes >= 0`; `ArgumentOutOfRangeException` otherwise).
 - `RoundTeamOutcome` (Core/Rounds) mirrors B2's `Domain.TeamOutcome` (Current/Passed/Unreached); B6 maps one to the other.
-- 90 tests. The concurrency tests were checked by removing the lock: 5 of 6 then fail.
+- 90 tests. The concurrency tests were checked by removing the lock: 5 of 6 then fail. (Updated in B4: they now run over several team/player counts via `Shapes` instead of one fixed 6 x 10 roster; see the shared rule on not hard-coding the 2026 event.)
 
 Original brief:
 
@@ -219,11 +224,12 @@ Kept for reference; **do not redo.** What exists now, including where it differs
 - **Api tests:** 81 new (199 Api tests total, 97 Core). `TeamEndpointsTests`, `PlayerEndpointsTests`, `WriteNotificationTests` (a spy `IGameNotifier` swapped in with `factory.WithWebHostBuilder(...)`; same container). This is where the **403-for-players cases B3 couldn't test** now live, and the `401` cases for the same routes. Mutation-checked: removing the 23505 catch makes both the team-create and the player-rename race tests fail with a 500.
 - **Test conventions for B5+:**
   - `factory.CreateAdminAsync()` inserts a **fresh admin** (unique name, known PIN) and signs a browser in. Use it instead of signing in as the seeded admin: sign-in is throttled to 5 attempts per real name, so a few tests signing in as `Test Admin` would hit 429. Returns `AdminSession(Client, PlayerId, RealName)`.
-  - `factory.SeededTeamIdAsync(n)` (n-th seeded team of the active event), `admin.CreateTeamAsync()`, and `factory.CreateOtherEventAsync()` (an inactive second event with a team and a player, for "another event's data is a 404" tests).
-  - **The shared database now contains more than the six seeded teams** (the create-team tests add some, and never delete the seeded ones). Never assume exactly six teams: assert on the rows you created, or take the first six by `SortOrder`. Never rename or delete a seeded team in a test. The same goes for players: filter by the ids you created. B5's `GET /api/scores/teams` will return those extra teams too.
+  - `factory.NewTeamIdAsync()` (a new team in the active event, inserted directly) and `admin.CreateTeamAsync()` (through the API) when a test needs "another team"; `factory.FirstTeamAsync()`, `factory.ActiveEventTeamsAsync()` and `factory.TeamNameAsync(id)` to read expected values from the database; `factory.CreateOtherEventAsync()` (an inactive second event with a team and a player, for "another event's data is a 404" tests). No helper picks "the n-th seeded team" any more: see the shared rule on not hard-coding the 2026 event.
+  - **The shared database holds more than the seed:** the create-team tests add teams, and other tests add players, and a second event exists. Never assume a team or player count, or that a list contains only the rows you made: assert on the rows you created, or compare with the database. Never rename or delete a seeded team in a test. B5's `GET /api/scores/teams` returns those extra teams too.
   - A signed-in browser stays signed in as whoever registered/signed in last on it: registering a player on an admin's `HttpClient` replaces the admin cookie.
 - **For B5:** promoting a player doesn't touch the ledger, so an admin can still have `PlayerId` score rows from when they were a player. `GET /api/scores/players` already excludes admins (brief), and the adjustment target check already requires role `Player`; B7's player list must exclude them too.
 - **Not run live:** the new `.http` requests (B4 section at the end of the file) were not run against the dev database, to keep the developer's dev data untouched; the same cases are covered by the integration tests against a throwaway PostgreSQL.
+- **Follow-up, tests made independent of the seed:** the Api tests no longer name the 2026 teams or assume six of them (they create teams or read them from the database), and `BuzzRoundConcurrencyTests` runs over 2, 6, 13 and 30 teams (`Shapes`). Both were checked by running the Api suite with 3 and then 8 teams in `Event:Teams`. This surfaced one product fix: team lists (`GET /api/teams`, `GET /api/event/teams`) now order by `SortOrder` **then `Id`**, because `SortOrder` isn't unique (two admins creating teams at once can tie) and Postgres returned ties in an arbitrary order.
 
 Original brief:
 
@@ -248,6 +254,7 @@ Original brief:
 - `GET /api/scores/adjustments?take=`: clamp to 1–100, default 20. Include the target name, the created-by display name, `reversesAdjustmentId`, and an `isReversed` flag.
 - Reverse: 404 if missing; 400 if the row is itself a reversal; 409 if already reversed (pre-check + 23505 catch). The new row has `Amount = -original` and the same target.
 - Every write → `ScoresChangedAsync()`.
+- **Tests:** follow the shared rule on not hard-coding the 2026 event. Create the teams and players each test needs, vary how many there are (ranking with 2, several and many teams; ties; a team with no score rows) and filter results by the ids you created, since the shared database holds other tests' teams.
 - **Check:** totals add up in the `.http` walkthrough, a second reverse returns 409, and ties share a rank.
 
 ---
@@ -272,6 +279,7 @@ Original brief:
 - **`Realtime/RoundClock`** (`BackgroundService`): `PeriodicTimer(100 ms)` → `RoundService.TickAsync()`. That calls `Tick()`; if it returns true, enqueue the locked record and broadcast. Wrap each iteration in try/catch + log so the clock never dies.
 - **`Realtime/HubGameNotifier : IGameNotifier`** sends `TeamsChanged` / `ScoresChanged` to All and replaces `NullGameNotifier`.
 - `AddSignalR().AddJsonProtocol(o => ...)` gets the same camelCase enum converter as HTTP.
+- **Tests:** follow the shared rule on not hard-coding the 2026 event. Round and roster tests build their own teams and players, and vary the team count (2, several, many) wherever "all teams have buzzed" or the queue size matters.
 - **Check:** write a throwaway console client in the session scratchpad, **not committed**. It uses `Microsoft.AspNetCore.SignalR.Client` + `HttpClient` with a `CookieContainer` for sign-in, and passes the cookies to the hub connection. Run 2 players on different teams + 1 admin through: Begin → one buzz → auto-lock after ~2 s with no further input → NextTeam → Reset. Then confirm that the admin receives individual buzzes and players don't, and that `Round` / `BuzzRecord` rows show LockedAt, EndedAt and outcomes.
 
 ---
@@ -282,6 +290,7 @@ Original brief:
 - `Features/Archive/ArchiveEndpoints.cs`:
   - `POST /api/archive/finalize` (admin): `roundsPlayed` = rounds with `LockedAt != null`; `totalBuzzes` = BuzzRecord count. Serialize with `JsonSerializerDefaults.Web`, upsert `EventArchive` (unique per event), set `Event.FinalizedAt`. Can be re-run.
   - `GET /api/archive/{eventId}/export` (admin): `Results.File(bytes, "application/json", $"buzzer-archive-{year}.json")`; 404 if not finalized.
+- **Tests:** follow the shared rule on not hard-coding the 2026 event: `ArchiveBuilder` tests use several team counts (including one team and a team with no members) and tied totals; the endpoint tests build their own teams and compare with the database.
 - **Check:** finalize → export → the file has `schemaVersion: 1`, correct totals and ranks. **Don't commit the file** (`.gitignore` already covers `buzzer-archive-*.json`).
 
 ---
