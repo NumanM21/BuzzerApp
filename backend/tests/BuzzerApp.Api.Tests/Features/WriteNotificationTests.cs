@@ -138,6 +138,62 @@ public class WriteNotificationTests(ApiFactory factory)
         Assert.Equal(teams, spy.Teams);
         Assert.Equal(scores, spy.Scores);
     }
+
+    [Fact]
+    public async Task Adjusting_and_reversing_scores_notify_scores_once_and_never_teams()
+    {
+        var (spy, client) = NewSpiedBrowser();
+        await factory.CreateAdminAsync(client);
+        var teamId = await factory.NewTeamIdAsync();
+        var playerId = (await factory.RegisterNewPlayerAsync()).PlayerId;
+        int teams = spy.Teams, scores = spy.Scores;
+
+        var team = await client.PostAsJsonAsync("/api/scores/adjustments", new { target = "team", targetId = teamId, amount = 5, direction = "add" });
+        team.EnsureSuccessStatusCode();
+        Assert.Equal(scores + 1, spy.Scores);
+
+        (await client.PostAsJsonAsync("/api/scores/adjustments", new { target = "player", targetId = playerId, amount = 2, direction = "remove" })).EnsureSuccessStatusCode();
+        Assert.Equal(scores + 2, spy.Scores);
+
+        var id = (await team.ReadJsonAsync()).GetProperty("id").GetInt64();
+        (await client.PostAsync($"/api/scores/adjustments/{id}/reverse", content: null)).EnsureSuccessStatusCode();
+        Assert.Equal(scores + 3, spy.Scores);
+        Assert.Equal(teams, spy.Teams);   // scoring doesn't change who is on which team
+    }
+
+    [Fact]
+    public async Task Rejected_and_forbidden_score_writes_notify_nobody()
+    {
+        var (spy, client) = NewSpiedBrowser();
+        var admin = await factory.CreateAdminAsync(client);
+        var teamId = await factory.NewTeamIdAsync();
+        var original = (await (await client.PostAsJsonAsync("/api/scores/adjustments", new { target = "team", targetId = teamId, amount = 5, direction = "add" })).ReadJsonAsync()).GetProperty("id").GetInt64();
+        (await client.PostAsync($"/api/scores/adjustments/{original}/reverse", content: null)).EnsureSuccessStatusCode();
+        int teams = spy.Teams, scores = spy.Scores;
+
+        var responses = new[]
+        {
+            await client.PostAsJsonAsync("/api/scores/adjustments", new { target = "team", targetId = teamId, amount = 0, direction = "add" }),        // 400 invalid
+            await client.PostAsJsonAsync("/api/scores/adjustments", new { target = "team", targetId = 999_999, amount = 5, direction = "add" }),     // 400 no such team
+            await client.PostAsJsonAsync("/api/scores/adjustments", new { target = "player", targetId = admin.PlayerId, amount = 5, direction = "add" }),   // 400 admin
+            await client.PostAsync("/api/scores/adjustments/999999999/reverse", content: null),                                                      // 404
+            await client.PostAsync($"/api/scores/adjustments/{original}/reverse", content: null),                                                    // 409 already reversed
+        };
+
+        Assert.Equal(
+            [HttpStatusCode.BadRequest, HttpStatusCode.BadRequest, HttpStatusCode.BadRequest, HttpStatusCode.NotFound, HttpStatusCode.Conflict],
+            responses.Select(r => r.StatusCode).ToArray());
+
+        Assert.Equal(teams, spy.Teams);
+        Assert.Equal(scores, spy.Scores);
+
+        // A player is turned away before the handler runs (a separate spy, since this one's client is the admin).
+        var (playerSpy, playerClient) = NewSpiedBrowser();
+        await playerClient.RegisterNewPlayerOnAsync(factory);
+        var forbidden = await playerClient.PostAsJsonAsync("/api/scores/adjustments", new { target = "team", targetId = teamId, amount = 5, direction = "add" });
+        Assert.Equal(HttpStatusCode.Forbidden, forbidden.StatusCode);
+        Assert.Equal(0, playerSpy.Scores);
+    }
 }
 
 internal static class SpiedClientExtensions
