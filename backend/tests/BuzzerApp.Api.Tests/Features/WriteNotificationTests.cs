@@ -12,8 +12,14 @@ namespace BuzzerApp.Api.Tests.Features;
 /// that every endpoint calls the seam after (and only after) a successful save.
 /// </summary>
 [Collection(ApiCollection.Name)]
-public class WriteNotificationTests(ApiFactory factory)
+public sealed class WriteNotificationTests(ApiFactory factory) : IDisposable
 {
+    // Each spied browser is a whole host (clock, persistence worker, a thread parked in app.Run). Left alone they would
+    // all live until the end of the test run.
+    private readonly List<IDisposable> _hosts = [];
+
+    public void Dispose() => _hosts.ForEach(h => h.Dispose());
+
     private sealed class SpyNotifier : IGameNotifier
     {
         private int _teams;
@@ -40,6 +46,7 @@ public class WriteNotificationTests(ApiFactory factory)
     {
         var spy = new SpyNotifier();
         var spied = factory.WithWebHostBuilder(b => b.ConfigureServices(s => s.AddSingleton<IGameNotifier>(spy)));
+        _hosts.Add(spied);
         return (spy, spied.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false, HandleCookies = true }));
     }
 
