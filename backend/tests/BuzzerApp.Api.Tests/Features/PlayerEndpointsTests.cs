@@ -43,6 +43,24 @@ public class PlayerEndpointsTests(ApiFactory factory)
     }
 
     [Fact]
+    public async Task The_player_list_is_sorted_by_display_name_ignoring_case_and_is_identical_on_every_request()
+    {
+        var token = Guid.NewGuid().ToString("N")[..6];
+        foreach (var display in new[] { $"zed {token}", $"Alpha {token}", $"mike {token}" })
+        {
+            (await factory.CreateBrowser().RegisterAsync(ApiHelpers.UniqueName("Real"), display, await factory.FirstTeamIdAsync())).EnsureSuccessStatusCode();
+        }
+
+        var admin = await factory.CreateAdminAsync();
+        var first = await (await admin.Client.GetAsync("/api/players")).ReadJsonAsync();
+        var second = await (await admin.Client.GetAsync("/api/players")).ReadJsonAsync();
+
+        var names = first.EnumerateArray().Select(p => p.GetProperty("displayName").GetString()!).ToList();
+        Assert.Equal(names.Order(StringComparer.OrdinalIgnoreCase), names);
+        Assert.Equal(first.GetRawText(), second.GetRawText());   // same data, same bytes: no dependence on row order in the database
+    }
+
+    [Fact]
     public async Task The_player_list_does_not_include_players_from_another_event()
     {
         var other = await factory.CreateOtherEventAsync();

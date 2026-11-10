@@ -50,11 +50,12 @@ public static class TeamEndpoints
             })
             .ToListAsync(ct);
 
-        // Sorted here rather than in SQL so the order doesn't depend on the database collation.
+        // Sorted here, with an explicit comparer and an Id tiebreaker, so the order is the same on every database and every request.
         var response = teams.Select(t => new TeamResponse(
             t.Id, t.Name, t.ColorKey, t.IconKey, t.SortOrder,
             t.Members
                 .OrderBy(m => m.DisplayName, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(m => m.Id)
                 .Select(m => new MemberResponse(
                     m.Id,
                     m.DisplayName,

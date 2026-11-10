@@ -37,9 +37,10 @@ public static class PlayerEndpoints
             .Where(p => p.EventId == user.EventId)
             .ToListAsync(ct);
 
-        // Sorted here rather than in SQL so the order doesn't depend on the database collation.
+        // Sorted here, with an explicit comparer and an Id tiebreaker, so the order is the same on every database and every request.
         return Results.Ok(players
             .OrderBy(p => p.DisplayName, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(p => p.Id)
             .Select(p => ToResponse(p, p.TeamId is { } teamId && teamNames.TryGetValue(teamId, out var name) ? name : null)));
     }
 
