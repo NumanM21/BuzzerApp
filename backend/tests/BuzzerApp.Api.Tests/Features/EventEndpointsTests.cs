@@ -38,7 +38,8 @@ public class EventEndpointsTests(ApiFactory factory)
         var teams = (await response.ReadJsonAsync()).EnumerateArray().ToList();
         Assert.Equal(
             ["Rage Quitters", "Pay To Win", "Cheat Codes", "Smurfs", "AFK Allstars", "RNG Lovers"],
-            teams.Select(t => t.GetProperty("name").GetString()!).ToArray());
+            // Take(6): other tests add teams to the shared event, and new teams sort after the seeded ones.
+            teams.Select(t => t.GetProperty("name").GetString()!).Take(6).ToArray());
         Assert.Equal("red", teams[0].GetProperty("colorKey").GetString());
         Assert.Equal("rage-quitters", teams[0].GetProperty("iconKey").GetString());
     }
@@ -78,7 +79,12 @@ public class EventEndpointsTests(ApiFactory factory)
     {
         var teams = await factory.CreateBrowser().GetAsync($"/api/event/teams?code={ApiFactory.JoinCode}");
         var total = (await teams.ReadJsonAsync()).EnumerateArray().Sum(t => t.GetProperty("memberCount").GetInt32());
-        var onTeams = await factory.WithDbAsync(db => Task.FromResult(db.Players.Count(p => p.TeamId != null)));
+        // Active event only: other tests create a second event whose players have teams too.
+        var onTeams = await factory.WithDbAsync(async db =>
+        {
+            var eventId = await ApiHelpers.ActiveEventIdAsync(db);
+            return db.Players.Count(p => p.EventId == eventId && p.TeamId != null);
+        });
 
         Assert.Equal(onTeams, total);
     }

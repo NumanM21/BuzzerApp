@@ -77,7 +77,11 @@ public static class ApiHelpers
 
     /// <summary>The n-th seeded team (0-based, by SortOrder). Tests never rename or delete seeded teams, since the database is shared.</summary>
     public static async Task<int> SeededTeamIdAsync(this ApiFactory factory, int index) =>
-        await factory.WithDbAsync(db => db.Teams.OrderBy(t => t.SortOrder).Skip(index).Select(t => t.Id).FirstAsync());
+        await factory.WithDbAsync(async db =>
+        {
+            var eventId = await ActiveEventIdAsync(db);
+            return await db.Teams.Where(t => t.EventId == eventId).OrderBy(t => t.SortOrder).Skip(index).Select(t => t.Id).FirstAsync();
+        });
 
     /// <summary>Creates a team through the API (so the test also depends on the create endpoint working) and returns its id.</summary>
     public static async Task<int> CreateTeamAsync(this AdminSession admin, string? name = null)
@@ -100,7 +104,8 @@ public static class ApiHelpers
             db.Events.Add(other);
             await db.SaveChangesAsync();
 
-            var team = new Team(other.Id, UniqueName("OTeam"), UniqueName("c"), "icon", 0, now);
+            // Sorted last so older helpers that pick "the first team" without scoping to the active event never land on it.
+            var team = new Team(other.Id, UniqueName("OTeam"), UniqueName("c"), "icon", sortOrder: 1000, now);
             db.Teams.Add(team);
             await db.SaveChangesAsync();
 
