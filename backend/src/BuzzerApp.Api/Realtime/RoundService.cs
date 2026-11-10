@@ -11,7 +11,7 @@ namespace BuzzerApp.Api.Realtime;
 /// Owns the one live round (D5, D14) and connects it to the outside: loads the roster, queues finished rounds for
 /// saving, and broadcasts snapshots. Singleton, so it never holds a DbContext; it opens a scope when it needs one.
 /// </summary>
-public sealed class RoundService
+public sealed class RoundService : IRoundTicker
 {
     private readonly BuzzRound _round;
     private readonly IServiceScopeFactory _scopes;

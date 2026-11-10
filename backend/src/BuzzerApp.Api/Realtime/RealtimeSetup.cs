@@ -14,6 +14,7 @@ public static class RealtimeSetup
         services.AddSingleton<IGameNotifier, HubGameNotifier>();
         services.AddSingleton<RoundPersistenceQueue>();
         services.AddSingleton<RoundService>();
+        services.AddSingleton<IRoundTicker>(sp => sp.GetRequiredService<RoundService>());
         services.AddHostedService<RoundPersistenceWorker>();
         services.AddHostedService<RoundClock>();
         return services;
