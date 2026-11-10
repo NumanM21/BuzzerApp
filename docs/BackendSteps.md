@@ -2,7 +2,7 @@
 
 > **Audience:** AI workers implementing one step each (usually in a fresh session).
 > Adds implementation detail to `docs/PlanMVP.md` §10 Milestone B. **PlanMVP wins on product decisions; this file wins on implementation detail.**
-> Written 9 Nov 2026. **B0 and B1 are done and merged into `main`; B2 is done on branch `backend-b2` and B3 on `backend-b3-auth` (each DONE section records what was actually produced).** Start at B4.
+> Written 9 Nov 2026. **B0 and B1 are done and merged into `main`; B2 is done on branch `backend-b2`, B3 on `backend-b3-auth` and B4 on `backend-b4` (each DONE section records what was actually produced).** Start at B5.
 
 | Step | Branch | Suggested model | Why |
 |---|---|---|---|
@@ -10,7 +10,7 @@
 | B1 | `backend-b1-core` — **DONE, merged** | Opus | State machine + concurrency; its API shape fixes B6 |
 | B2 | `backend-b2` — **DONE** | Sonnet | Standard EF Core; traps listed below |
 | B3 | `backend-b3-auth` — **DONE** | Sonnet + review | Security-sensitive |
-| B4 | `backend/b4-teams-players` | Sonnet | CRUD |
+| B4 | `backend-b4` — **DONE** | Sonnet | CRUD |
 | B5 | `backend/b5-scores` | Sonnet | CRUD + `ScoreMath` |
 | B6 | `backend/b6-realtime` | **Opus** (or Sonnet + Opus review) | Singleton + clock + SignalR + ordered persistence; bugs only show up under timing |
 | B7 | `backend/b7-archive` | Sonnet | Pure builder + 2 endpoints |
@@ -201,7 +201,31 @@ Original brief:
 
 ---
 
-## B4 — Teams + players
+## B4 — Teams + players — DONE
+
+Kept for reference; **do not redo.** What exists now, including where it differs from the original brief:
+
+- **Api:** `Features/Teams/TeamEndpoints.cs` and `Features/Players/PlayerEndpoints.cs` (route group, records and handlers per file, as briefed), `Realtime/IGameNotifier.cs` (the interface plus `NullGameNotifier`), registered in `Program.cs` as a singleton. **B6 replaces that registration line** with `HubGameNotifier`. Admin routes sit in a nested `MapGroup("").RequireAuthorization(AuthPolicies.Admin)` inside the feature's group, so a route that forgets it falls back to "signed in" rather than "public"; B5 can use the same shape.
+- **Common additions:** `ValidationErrors.OptionalPersonName` (null = leave unchanged), `Key` (colour/icon keys) and `Error` (custom message); `DbErrors.IsForeignKeyViolation`.
+- **Notifications:** every successful write in B4 sends **both** `TeamsChangedAsync` and `ScoresChangedAsync` (a new or deleted team is a leaderboard row; a rename, move or promote changes team and player names, teams and who appears on the player leaderboard). Rejected writes and no-ops (a move to the team the player is already on, promoting an existing admin) send nothing. B5 only needs `ScoresChangedAsync`.
+- **Deviations / decisions not in the brief:**
+  - **Colour and icon keys must match `^[a-z0-9-]{1,50}$`** (trimmed, not lower-cased for the caller: `"Red"` is a 400). The unique index on `(EventId, ColorKey)` is case-sensitive, so without this `"Red"` could sit next to `"red"`.
+  - `POST /api/teams` and `PATCH /api/teams/{id}` return `TeamSummaryResponse` (no members). New teams get `SortOrder = max + 1`. A rename may change only the capitalisation of the team's own name.
+  - **Idempotent no-ops return 200:** `promote` on an existing admin, and a move to the player's current team.
+  - Move: unknown or other-event **team** → 400 on `teamId` (same as register); unknown or other-event **player** → 404; an admin target → 400. An empty `PATCH` body (`{}`) on the name routes → 400.
+  - `PATCH /api/players/me` returns the same `PlayerResponse` as the admin routes (includes the real name, which is the caller's own). Own-name and admin edits share one code path; a clash with another player is a 409 and nothing is applied (no half-saved request).
+  - Delete races: a team deletion that loses to a registering player is caught as an FK violation (23503) and returned as 409; a move into a team deleted in between returns 400.
+  - Branch name: `backend-b4` (already created by the developer), not `backend/b4-teams-players`.
+- **Api tests:** 81 new (199 Api tests total, 97 Core). `TeamEndpointsTests`, `PlayerEndpointsTests`, `WriteNotificationTests` (a spy `IGameNotifier` swapped in with `factory.WithWebHostBuilder(...)`; same container). This is where the **403-for-players cases B3 couldn't test** now live, and the `401` cases for the same routes. Mutation-checked: removing the 23505 catch makes both the team-create and the player-rename race tests fail with a 500.
+- **Test conventions for B5+:**
+  - `factory.CreateAdminAsync()` inserts a **fresh admin** (unique name, known PIN) and signs a browser in. Use it instead of signing in as the seeded admin: sign-in is throttled to 5 attempts per real name, so a few tests signing in as `Test Admin` would hit 429. Returns `AdminSession(Client, PlayerId, RealName)`.
+  - `factory.SeededTeamIdAsync(n)` (n-th seeded team of the active event), `admin.CreateTeamAsync()`, and `factory.CreateOtherEventAsync()` (an inactive second event with a team and a player, for "another event's data is a 404" tests).
+  - **The shared database now contains more than the six seeded teams** (the create-team tests add some, and never delete the seeded ones). Never assume exactly six teams: assert on the rows you created, or take the first six by `SortOrder`. Never rename or delete a seeded team in a test. The same goes for players: filter by the ids you created. B5's `GET /api/scores/teams` will return those extra teams too.
+  - A signed-in browser stays signed in as whoever registered/signed in last on it: registering a player on an admin's `HttpClient` replaces the admin cookie.
+- **For B5:** promoting a player doesn't touch the ledger, so an admin can still have `PlayerId` score rows from when they were a player. `GET /api/scores/players` already excludes admins (brief), and the adjustment target check already requires role `Player`; B7's player list must exclude them too.
+- **Not run live:** the new `.http` requests (B4 section at the end of the file) were not run against the dev database, to keep the developer's dev data untouched; the same cases are covered by the integration tests against a throwaway PostgreSQL.
+
+Original brief:
 
 - `Features/Teams/TeamEndpoints.cs` (§8.3) and `Features/Players/PlayerEndpoints.cs` (§8.4): route group, request/response records and handlers in one file per feature.
 - Everything is scoped to the caller's `EventId` claim. A resource from another event → 404.
