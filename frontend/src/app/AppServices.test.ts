@@ -1,7 +1,7 @@
 import { http } from 'msw';
 import { describe, expect, it } from 'vitest';
 import { problem } from '@/test/factories';
-import { FakeGameEvents } from '@/test/fakes/FakeGameEvents';
+import { FakeGameConnection } from '@/test/fakes/FakeGameConnection';
 import { flushPromises } from '@/test/flushPromises';
 import { problemResponse } from '@/test/msw/handlers';
 import { server } from '@/test/msw/server';
@@ -9,9 +9,9 @@ import { createAppServices } from './AppServices';
 
 // The composition root against the fake network: what only the wiring in `createAppServices` can get wrong.
 function create() {
-  const events = new FakeGameEvents();
-  const services = createAppServices({ fetchFunction: (input, init) => fetch(input, init), events });
-  return { services, events };
+  const connection = new FakeGameConnection();
+  const services = createAppServices({ fetchFunction: (input, init) => fetch(input, init), connection });
+  return { services, connection };
 }
 
 describe('createAppServices', () => {
@@ -47,7 +47,7 @@ describe('createAppServices', () => {
   });
 
   it('reloads what is loaded when the hub says something changed', async () => {
-    const { services, events } = create();
+    const { services, connection } = create();
     let reads = 0;
     server.use(
       http.get('/api/scores/teams', () => {
@@ -58,7 +58,7 @@ describe('createAppServices', () => {
     await services.session.restore();
     await services.scores.teamScores.ensureLoaded();
 
-    events.emitScoresChanged();
+    connection.emitScoresChanged();
     await flushPromises();
     await services.scores.teamScores.ensureLoaded();
 
