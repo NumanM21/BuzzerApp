@@ -2,14 +2,14 @@
 
 > **Audience:** AI workers implementing one step each in a fresh session, and the developer who starts and reviews them.
 > Adds implementation detail to `docs/PlanMVP.md` §10 Milestone F. **PlanMVP wins on product decisions; this file wins on frontend implementation detail.**
-> Written 10 Nov 2026. **F0 is done: start at F1.**
+> Written 10 Nov 2026. **F0 and F1 are done: start at F2.**
 >
 > The backend is finished and is not changed by these steps. If a step seems to need a backend change, stop and ask the developer.
 
 | Step | Branch | Suggested model | Scope |
 |---|---|---|---|
 | F0 | `frontend-f0` — **DONE** | **Opus 5.5** | Packages, tooling, folders, composition root, MVVM base, theme contract + `default` pack + `/dev/theme`, guard tests, CI. Sets the patterns every later step copies |
-| F1 | `frontend-f1` | Sonnet 5.5 | `arcade-2026` theme pack, spare team colours, `docs/ThemePacks.md` (how to add next year's pack) |
+| F1 | `frontend-f1` — **DONE** | Sonnet 5.5 | `arcade-2026` theme pack, spare team colours, `docs/ThemePacks.md` (how to add next year's pack) |
 | F2 | `frontend-f2` | Sonnet 5.5 | API client, wire types, one API class per feature, stores, MSW handlers, test factories |
 | F3 | `frontend-f3` | Sonnet 5.5 | `/join` (new player / sign in), route guards, layout shell + navigation |
 | F4 | `frontend-f4` | **Opus 5.5** | SignalR connection, round store, server clock, session and connection lifecycle, buzzer state rule |
@@ -293,7 +293,29 @@ Teams and players change every year: 2026 has six teams; another year may have t
 
 ---
 
-## F1 — Arcade pack
+## F1 — Arcade pack — DONE
+
+> **Done 10 Nov 2026. Kept for reference; do not redo.**
+>
+> **What exists**
+> - `frontend/src/theme/packs/arcade-2026/` (`index.ts`, `icons/`), registered in `registry.ts` after `default`. Packages `@fontsource/press-start-2p` and `@fontsource/vt323` 5.3.0 (only the `latin` and `latin-ext` 400 CSS files are imported; browsers fetch a file only when a character needs it).
+> - Team colours: the six from PlanMVP §9.3 under `red`, `yellow`, `green`, `blue`, `purple`, `pink`, plus spares `orange`, `teal`, `white`. Icons: the six `<team>.png` copies, plus `default` (a transparent pixel face, `icons/default.svg`, which takes the team colour from the card's icon box so it suits any colour); `default` is also the fallback icon. The fallback colour is a mid grey.
+> - `docs/ThemePacks.md`: what a pack is, the contract field by field, adding a pack step by step, never deleting packs, the ready-to-paste prompt, and gotchas learned here.
+> - The backend's `appsettings.json` already uses these exact colour and icon keys; nothing to change there.
+>
+> **Deviations and decisions**
+> - **No scanlines.** The contract takes one opaque line colour; one pixel line in three over VT323's one-pixel strokes would erase letters. The pack says where to add `effects.scanlines` if the developer wants to try it on a real screen.
+> - **Red's `onFill` is `#FFFFFF`**, not off-white or ink: ink reaches only 3.8:1 and `#F2F2F2` 4.4:1 on `#D7263D`. Every other team colour uses ink.
+> - **The chrome is grey.** The `fluent.brand` ramp is neutral greys, and `colorBrandBackground*` plus `colorNeutralForegroundOnBrand` are overridden so primary buttons are off-white with ink text. The hard shadow is `4px 4px 0 #3A3A3A` (black would vanish on the near-black page). `borderRadiusCircular` is kept so radios and switches stay recognisable.
+> - **Fonts and sizes.** Headings, scores and the buzzer use Press Start 2P; everything Fluent draws (buttons, inputs, menus, tables) uses VT323, because Fluent has no separate button font. VT323 is small for its size, so `fontSizeBase100`–`500` and their line heights are raised; `fontSizeHero800` (the buzzer label) is 24px so "WAITING" fits inside the buzzer at 360 px (40px fits five glyphs). All font weights are 400 (neither font has a bold).
+> - Buzzer states: `ready` pulses and `yourTeamUp` blinks, both in the team colour; `queued`, `waiting`, `out` are greys of falling brightness with fixed text colours.
+> - One change outside the pack: `ThemePreviewPage.tsx` section headings now set `fontSize`/`lineHeight` explicitly (Base600). Left to the browser's 1.5em default, a wrapped heading overlapped itself once the pack raised the base line height. No contract slot was added.
+> - Contract test: nothing arcade-specific added; it ran over the pack automatically (183 tests now).
+> - **Checked:** lint, build, tests; and `/dev/theme` with `arcade-2026` rendered in headless Edge (layout width 500, since headless Edge won't go narrower): every team colour, the fallback, wrapping of the longest names, Fluent controls and the buzzer states look right. **Not** checked at a true 360 px or on a phone: that, and taste, are the developer's call on `/dev/theme`.
+>
+> **Later steps must know**
+> - Copy strings are upper case in this pack (`BUZZ!`, `YOUR TEAM'S UP!`). Keep views free of `text-transform` and let the pack decide.
+> - Press Start 2P is one em wide per glyph: when a view puts text in the heading or numeric font, long words wrap with `overflow-wrap: anywhere` (as `TeamCard` does). F5's buzzer sublabel is in this font too (24px); keep it to a few short words.
 
 **Model:** Sonnet 5.5. **Read also:** PlanMVP §9.3 (the look, the palette table, the icon rules). Look at `images/team-logos/group-participating-teams.png` and one `<team>-face.png` for the style.
 
@@ -814,3 +836,5 @@ End-to-end tests are a later addition (PlanMVP §11). Each step appends the scen
 | F0 | One tap on the buzzer counts exactly one press ("Presses" on `/dev/theme`), also a fast double tap, and the page doesn't zoom | `pointerdown` vs click and `touch-action` only behave for real on a touch screen |
 | F0 | `/dev/theme` at 360 px wide, 1 and 13 teams, longest names: no horizontal scroll, names wrap | Layout and wrapping need a real rendering engine |
 | F0 | A dialog and a menu opened on `/dev/theme` use the selected pack's look | Portals render outside the page tree; only a browser shows that the CSS variables reach them |
+| F1 | Visual snapshots of `/dev/theme` per registered pack, at 360 px and desktop width | The one place a screenshot catches a regression no unit test can: fonts that fail to load, wrapped or clipped text, a colour that clashes |
+| F1 | With `arcade-2026` selected, the longest buzzer label ("WAITING FOR HOST") and a 24-character team name stay inside the buzzer and the card at 360 px | Glyph widths of Press Start 2P only exist in a real rendering engine |
