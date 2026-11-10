@@ -7,8 +7,8 @@ namespace BuzzerApp.Infrastructure.Seeding;
 public static class DatabaseInitializer
 {
     /// <summary>
-    /// Run after <c>builder.Build()</c> and before <c>app.Run()</c>. Migrating automatically is only
-    /// requested in Development; production schema changes are applied deliberately.
+    /// Run after <c>builder.Build()</c> and before <c>app.Run()</c>. The caller decides whether to migrate: always
+    /// in Development, and only when a deployment asks for it elsewhere, so production schema changes are deliberate.
     /// </summary>
     public static async Task InitializeDatabaseAsync(IServiceProvider services, bool applyMigrations, CancellationToken ct = default)
     {

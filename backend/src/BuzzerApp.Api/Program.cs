@@ -44,7 +44,10 @@ builder.Services.ConfigureHttpJsonOptions(o =>
 // dotnet ef stops the host at Build(), so the seeding below never runs while generating migrations.
 var app = builder.Build();
 
-await DatabaseInitializer.InitializeDatabaseAsync(app.Services, applyMigrations: app.Environment.IsDevelopment());
+// Development migrates by itself. Anywhere else it is opt-in (Database:MigrateOnStartup=true), so a deployment decides
+// when its schema changes; left off, the app expects an already-migrated database and fails at the seeder if it isn't.
+var migrateOnStartup = app.Configuration.GetValue("Database:MigrateOnStartup", app.Environment.IsDevelopment());
+await DatabaseInitializer.InitializeDatabaseAsync(app.Services, applyMigrations: migrateOnStartup);
 
 app.UseExceptionHandler();
 app.UseStatusCodePages();

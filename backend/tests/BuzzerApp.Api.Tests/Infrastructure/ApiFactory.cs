@@ -46,6 +46,15 @@ public class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         builder.UseSetting("RateLimiting:JoinCodePerMinute", JoinCodePerMinute.ToString(System.Globalization.CultureInfo.InvariantCulture));
     }
 
+    /// <summary>
+    /// A connection string for another database in the same container (it need not exist yet: migrating creates it).
+    /// For the few tests that need an empty or separately seeded database without paying for a second container.
+    /// </summary>
+    public string ConnectionStringFor(string database) =>
+        new Npgsql.NpgsqlConnectionStringBuilder(_postgres.GetConnectionString()) { Database = database }.ConnectionString;
+
+    public static string NewDatabaseName() => $"scratch_{Guid.NewGuid():N}";
+
     /// <summary>A client with its own cookie jar, so each test acts as its own browser. Redirects are off so a stray 302 fails a test instead of hiding.</summary>
     public HttpClient CreateBrowser() =>
         CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false, HandleCookies = true });
