@@ -325,3 +325,31 @@ GET {{host}}/api/archive/999999/export
 
 ### As a PLAYER (sign in as Alice first): both routes are 403. Anonymous: both are 401
 POST {{host}}/api/archive/finalize
+
+# ======================= B8: hosting =======================
+# None of these need a sign-in. The app pages need a frontend build copied into backend/src/BuzzerApp.Api/wwwroot
+# (cd frontend; npm run build; copy dist/* there). Without it the page requests below are 404.
+
+### Health check. Expect 200 and the text "Healthy"; 503 "Unhealthy" when PostgreSQL is unreachable
+GET {{host}}/healthz
+
+### The app itself. Expect 200 text/html (index.html)
+GET {{host}}/
+
+### A client-side route. Expect the same index.html, so a refresh or a shared link works
+GET {{host}}/some/client/route
+
+### A built asset (use a real file name from wwwroot/assets). Expect 200 with the file itself, not HTML
+GET {{host}}/assets/index.js
+
+### A missing file. Expect 404, never index.html
+GET {{host}}/assets/missing.js
+
+### Unknown API path, signed in or not. Expect 404 ProblemDetails (not 401, not index.html)
+GET {{host}}/api/nope
+
+### Unknown hub path. Expect 404 ProblemDetails. The real hub, /hubs/game, still negotiates (401 without a cookie)
+GET {{host}}/hubs/nope
+
+###
+POST {{host}}/hubs/game/negotiate?negotiateVersion=1
