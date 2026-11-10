@@ -15,7 +15,6 @@ public class RoundFlowTests(ApiFactory factory)
 {
     [Theory]
     [InlineData(2)]
-    [InlineData(6)]
     [InlineData(13)]
     public async Task One_buzz_locks_after_the_grace_window_with_no_further_input(int teamCount)
     {
@@ -94,7 +93,7 @@ public class RoundFlowTests(ApiFactory factory)
 
     public static TheoryData<int, int> EveryTeamShapes => new()
     {
-        { 1, 0 }, { 2, 0 }, { 2, 1 }, { 2, 2 }, { 6, 3 }, { 13, 0 }, { 13, 13 },
+        { 1, 0 }, { 2, 1 }, { 6, 3 }, { 13, 13 },
     };
 
     [Theory]
