@@ -2,7 +2,7 @@
 
 > **Audience:** AI workers implementing one step each (usually in a fresh session).
 > Adds implementation detail to `docs/PlanMVP.md` §10 Milestone B. **PlanMVP wins on product decisions; this file wins on implementation detail.**
-> Written 9 Nov 2026, last updated 10 Nov 2026. **B0–B8 are done and on `main`; B9 is done on branch `backend-b9`** (each DONE section records what was actually produced). **Milestone B is finished: next is F0.**
+> Written 9 Nov 2026, last updated 10 Nov 2026. **B0–B8 are done and on `main`; B9 is done on branch `backend-b9`** (each DONE section records what was actually produced). **Milestone B is finished: next is F0.** The frontend briefs are in `docs/FrontendSteps.md`; frontend sessions don't need this file (its Appendix A carries the API contract).
 >
 > **Read the B9 section before relying on B3–B8's notes.** B9 corrected several of them (the "slow" test suite, B8's catch-all routes, where endpoint logic lives). Notes that B9 superseded are marked "B9:" in place; the older text is history.
 
@@ -464,7 +464,7 @@ Kept for reference; **do not redo.** B9 turned out to be more than a review: it 
 
 ### Left as known limits
 
-- Only `/me` rejects a cookie from an inactive event. The other routes and the hub still accept it (they act on that old event's data only), because the tests rely on inactive events for isolation. **For F3:** call `/me` when the app starts and after a hub reconnect, and reconnect the hub after a role change (the hub connection keeps its old principal).
+- Only `/me` rejects a cookie from an inactive event. The other routes and the hub still accept it (they act on that old event's data only), because the tests rely on inactive events for isolation. **For the frontend's realtime step (F4 since 10 Nov 2026; it was F3 when this was written):** call `/me` when the app starts and after a hub reconnect, and reconnect the hub after a role change (the hub connection keeps its old principal).
 - A wrong method on a real route is 401, not 405, for an anonymous caller.
 - A team that queues after `Round:MaxRecordedBuzzes` (100) buzzes has no `BuzzRecord`, so its outcome is not saved. Needs more than 100 buzzing players in one round.
 - Anyone can still lock a real name out of sign-in for 5 minutes (B3, accepted).
