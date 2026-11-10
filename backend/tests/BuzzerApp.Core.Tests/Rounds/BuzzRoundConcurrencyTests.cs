@@ -10,45 +10,55 @@ namespace BuzzerApp.Core.Tests.Rounds;
 /// </summary>
 public class BuzzRoundConcurrencyTests
 {
-    private const int TeamCount = 6;
-    private const int PlayersPerTeam = 10;
     private const int BuzzAttempts = 200;
 
     private static readonly DateTimeOffset Start = new(2026, 12, 5, 19, 0, 0, TimeSpan.Zero);
 
     private readonly FakeTimeProvider _time = new(Start);
 
-    // Player ids 1..60; team = 1 + (id - 1) % 6, so consecutive ids land on different teams.
-    private static RosterEntry[] BuildRoster() =>
-        Enumerable.Range(1, TeamCount * PlayersPerTeam)
+    // Team counts and sizes change between events, so the engine is exercised across several shapes (few teams, the
+    // 2026 shape, many small teams) instead of one hard-coded layout. These feed the [InlineData] of the tests below.
+    public static TheoryData<int, int> Shapes => new()
+    {
+        { 2, 3 },    // the smallest sensible game
+        { 6, 10 },   // 2026
+        { 13, 4 },   // more teams than 2026
+        { 30, 3 },   // many small teams
+    };
+
+    // Player ids 1..teams*perTeam; team = 1 + (id - 1) % teams, so consecutive ids land on different teams
+    // and ids 1..teams are one player from each team.
+    private static RosterEntry[] BuildRoster(int teamCount, int playersPerTeam) =>
+        Enumerable.Range(1, teamCount * playersPerTeam)
             .Select(id =>
             {
-                var team = 1 + (id - 1) % TeamCount;
+                var team = 1 + (id - 1) % teamCount;
                 return new RosterEntry(id, $"Player {id}", team, $"Team {team}");
             })
             .ToArray();
 
-    private BuzzRound NewOpenRound()
+    private BuzzRound NewOpenRound(int teamCount, int playersPerTeam)
     {
         // A long window so the lock comes from every team queueing, not from time.
         var round = new BuzzRound(_time, new RoundSettings { GraceWindow = TimeSpan.FromMinutes(5) });
-        Assert.True(round.Begin(BuildRoster()).Success);
+        Assert.True(round.Begin(BuildRoster(teamCount, playersPerTeam)).Success);
         return round;
     }
 
-    [Fact]
-    public void Parallel_buzzes_give_exactly_one_queue_entry_per_team()
+    [Theory]
+    [MemberData(nameof(Shapes))]
+    public void Parallel_buzzes_give_exactly_one_queue_entry_per_team(int teamCount, int playersPerTeam)
     {
-        var round = NewOpenRound();
-        var players = TeamCount * PlayersPerTeam;
+        var round = NewOpenRound(teamCount, playersPerTeam);
+        var players = teamCount * playersPerTeam;
 
         Parallel.For(0, BuzzAttempts, i => round.Buzz(1 + i % players));
 
         var snapshot = round.GetAdminSnapshot();
         Assert.Equal(RoundPhase.Locked, snapshot.Phase);
-        Assert.Equal(TeamCount, snapshot.TeamQueue.Count);
-        Assert.Equal(Enumerable.Range(1, TeamCount), snapshot.TeamQueue.Select(q => q.Position));
-        Assert.Equal(TeamCount, snapshot.TeamQueue.Select(q => q.TeamId).Distinct().Count());
+        Assert.Equal(teamCount, snapshot.TeamQueue.Count);
+        Assert.Equal(Enumerable.Range(1, teamCount), snapshot.TeamQueue.Select(q => q.Position));
+        Assert.Equal(teamCount, snapshot.TeamQueue.Select(q => q.TeamId).Distinct().Count());
         Assert.Single(snapshot.TeamQueue, q => q.Status == TeamTurnStatus.Current);
         Assert.Equal(snapshot.TeamQueue[0].TeamId, snapshot.CurrentTeamId);
 
@@ -56,7 +66,7 @@ public class BuzzRoundConcurrencyTests
         // must be internally consistent.
         Assert.Equal(Enumerable.Range(1, snapshot.Buzzes.Count), snapshot.Buzzes.Select(b => b.Sequence));
         Assert.Equal(snapshot.Buzzes.Count, snapshot.Buzzes.Select(b => b.PlayerId).Distinct().Count());
-        Assert.Equal(TeamCount, snapshot.Buzzes.Count(b => b.CountedForTeam));
+        Assert.Equal(teamCount, snapshot.Buzzes.Count(b => b.CountedForTeam));
 
         // Each queue entry is credited to the first recorded buzz of that team.
         foreach (var entry in snapshot.TeamQueue)
@@ -94,11 +104,12 @@ public class BuzzRoundConcurrencyTests
         Assert.Equal(1 + 50, snapshot.Version); // Begin + one per first buzz
     }
 
-    [Fact]
-    public void Only_one_concurrent_begin_wins()
+    [Theory]
+    [MemberData(nameof(Shapes))]
+    public void Only_one_concurrent_begin_wins(int teamCount, int playersPerTeam)
     {
         var round = new BuzzRound(_time, new RoundSettings());
-        var roster = BuildRoster();
+        var roster = BuildRoster(teamCount, playersPerTeam);
         var successes = 0;
 
         Parallel.For(0, 50, _ =>
@@ -113,13 +124,14 @@ public class BuzzRoundConcurrencyTests
         Assert.Equal(1, round.GetPublicSnapshot().Version);
     }
 
-    [Fact]
-    public void Locked_record_is_taken_by_exactly_one_caller()
+    [Theory]
+    [MemberData(nameof(Shapes))]
+    public void Locked_record_is_taken_by_exactly_one_caller(int teamCount, int playersPerTeam)
     {
-        var round = NewOpenRound();
-        foreach (var team in Enumerable.Range(1, TeamCount))
+        var round = NewOpenRound(teamCount, playersPerTeam);
+        foreach (var team in Enumerable.Range(1, teamCount))
         {
-            round.Buzz(team); // player id == team id for the first six players
+            round.Buzz(team); // ids 1..teamCount are one player from each team
         }
 
         var records = new ConcurrentBag<LockedRoundRecord>();
@@ -134,11 +146,12 @@ public class BuzzRoundConcurrencyTests
         Assert.Single(records);
     }
 
-    [Fact]
-    public void Tick_and_late_buzzes_racing_at_the_window_end_lock_exactly_once()
+    [Theory]
+    [MemberData(nameof(Shapes))]
+    public void Tick_and_late_buzzes_racing_at_the_window_end_lock_exactly_once(int teamCount, int playersPerTeam)
     {
         var round = new BuzzRound(_time, new RoundSettings { GraceWindow = TimeSpan.FromSeconds(2) });
-        round.Begin(BuildRoster());
+        round.Begin(BuildRoster(teamCount, playersPerTeam));
         round.Buzz(1);
         _time.Advance(TimeSpan.FromSeconds(2));
         var versionBefore = round.GetPublicSnapshot().Version;
@@ -166,11 +179,12 @@ public class BuzzRoundConcurrencyTests
         Assert.Null(round.TakeLockedRecord());
     }
 
-    [Fact]
-    public void Snapshots_read_during_buzzing_are_consistent_and_versions_never_go_backwards()
+    [Theory]
+    [MemberData(nameof(Shapes))]
+    public void Snapshots_read_during_buzzing_are_consistent_and_versions_never_go_backwards(int teamCount, int playersPerTeam)
     {
-        var round = NewOpenRound();
-        var players = TeamCount * PlayersPerTeam;
+        var round = NewOpenRound(teamCount, playersPerTeam);
+        var players = teamCount * playersPerTeam;
         var failures = new ConcurrentBag<string>();
 
         Parallel.Invoke(

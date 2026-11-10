@@ -251,6 +251,6 @@ public class SignInTests(ApiFactory factory)
 
         var me = await response.ReadJsonAsync();
         Assert.Equal(player.TeamId, me.GetProperty("teamId").GetInt32());
-        Assert.Equal("Rage Quitters", me.GetProperty("teamName").GetString());
+        Assert.Equal(await factory.TeamNameAsync(player.TeamId), me.GetProperty("teamName").GetString());
     }
 }

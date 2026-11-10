@@ -27,19 +27,22 @@ public class TeamEndpointsTests(ApiFactory factory)
     }
 
     [Fact]
-    public async Task Teams_come_back_in_sort_order_with_the_seeded_six_first()
+    public async Task Every_team_of_the_event_comes_back_in_sort_order()
     {
+        // Compared with the database, not literals: the number and names of teams change every year.
+        await factory.NewTeamIdAsync();   // make sure there is more than the seed alone
         var player = await factory.RegisterNewPlayerAsync();
+        var expected = await factory.ActiveEventTeamsAsync();
 
         var teams = await (await player.Client.GetAsync("/api/teams")).ReadJsonAsync();
 
-        var names = teams.EnumerateArray().Select(t => t.GetProperty("name").GetString()!).Take(6).ToArray();
-        Assert.Equal(["Rage Quitters", "Pay To Win", "Cheat Codes", "Smurfs", "AFK Allstars", "RNG Lovers"], names);
+        Assert.True(expected.Count > 1);
+        Assert.Equal(expected.Select(t => t.Id), teams.EnumerateArray().Select(t => t.GetProperty("id").GetInt32()));
+        Assert.Equal(expected.Select(t => t.Name), teams.EnumerateArray().Select(t => t.GetProperty("name").GetString()!));
+        Assert.Equal(expected.Select(t => t.ColorKey), teams.EnumerateArray().Select(t => t.GetProperty("colorKey").GetString()!));
+        Assert.Equal(expected.Select(t => t.IconKey), teams.EnumerateArray().Select(t => t.GetProperty("iconKey").GetString()!));
         var sortOrders = teams.EnumerateArray().Select(t => t.GetProperty("sortOrder").GetInt32()).ToArray();
         Assert.Equal(sortOrders.Order(), sortOrders);
-        var first = teams[0];
-        Assert.Equal("red", first.GetProperty("colorKey").GetString());
-        Assert.Equal("rage-quitters", first.GetProperty("iconKey").GetString());
     }
 
     [Fact]
@@ -117,7 +120,8 @@ public class TeamEndpointsTests(ApiFactory factory)
     public async Task Team_write_routes_are_403_for_a_signed_in_player()
     {
         var player = await factory.RegisterNewPlayerAsync();
-        var teamId = await factory.SeededTeamIdAsync(0);
+        var teamId = await factory.NewTeamIdAsync();
+        var originalName = await factory.TeamNameAsync(teamId);
 
         var create = await player.Client.PostAsJsonAsync("/api/teams", new { name = "Sneaky", colorKey = "teal", iconKey = "x" });
         var rename = await player.Client.PatchAsJsonAsync($"/api/teams/{teamId}", new { name = "Sneaky" });
@@ -127,7 +131,7 @@ public class TeamEndpointsTests(ApiFactory factory)
         Assert.Equal(HttpStatusCode.Forbidden, rename.StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, delete.StatusCode);
         Assert.Null(create.Headers.Location);   // a status code, not a redirect to an access-denied page
-        Assert.Equal("Rage Quitters", await factory.WithDbAsync(db => db.Teams.Where(t => t.Id == teamId).Select(t => t.Name).SingleAsync()));
+        Assert.Equal(originalName, await factory.TeamNameAsync(teamId));
     }
 
     [Fact]
@@ -164,11 +168,13 @@ public class TeamEndpointsTests(ApiFactory factory)
     }
 
     [Theory]
-    [InlineData("rage quitters")]       // a seeded team, different case
-    [InlineData("  RAGE QUITTERS  ")]   // and surrounding spaces
-    public async Task Creating_a_team_with_an_existing_name_is_409(string name)
+    [InlineData("lower-case")]
+    [InlineData("upper-case-and-padded")]
+    public async Task Creating_a_team_with_an_existing_name_is_409(string variant)
     {
         var admin = await factory.CreateAdminAsync();
+        var existing = (await factory.FirstTeamAsync()).Name;   // whatever the seed called it
+        var name = variant == "lower-case" ? existing.ToLowerInvariant() : $"  {existing.ToUpperInvariant()}  ";
 
         var response = await admin.Client.PostAsJsonAsync("/api/teams", new { name, colorKey = ApiHelpers.UniqueName("c"), iconKey = "x" });
 
@@ -181,7 +187,9 @@ public class TeamEndpointsTests(ApiFactory factory)
     {
         var admin = await factory.CreateAdminAsync();
 
-        var response = await admin.Client.PostAsJsonAsync("/api/teams", new { name = ApiHelpers.UniqueName("Team"), colorKey = "red", iconKey = "x" });
+        var takenColour = (await factory.FirstTeamAsync()).ColorKey;
+
+        var response = await admin.Client.PostAsJsonAsync("/api/teams", new { name = ApiHelpers.UniqueName("Team"), colorKey = takenColour, iconKey = "x" });
 
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
         Assert.Equal("Another team already uses that colour.", (await response.ReadJsonAsync()).GetProperty("detail").GetString());
@@ -260,8 +268,9 @@ public class TeamEndpointsTests(ApiFactory factory)
     {
         var admin = await factory.CreateAdminAsync();
         var teamId = await admin.CreateTeamAsync();
+        var otherName = (await factory.FirstTeamAsync()).Name.ToLowerInvariant();
 
-        var response = await admin.Client.PatchAsJsonAsync($"/api/teams/{teamId}", new { name = "smurfs" });
+        var response = await admin.Client.PatchAsJsonAsync($"/api/teams/{teamId}", new { name = otherName });
 
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
     }
