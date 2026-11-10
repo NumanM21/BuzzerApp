@@ -1,3 +1,4 @@
+using BuzzerApp.Core.Domain;
 using BuzzerApp.Core.Rounds;
 using Microsoft.Extensions.Time.Testing;
 
@@ -728,9 +729,9 @@ public class BuzzRoundTests
         Assert.Equal(Start + TimeSpan.FromSeconds(20), record.EndedAt);
         Assert.Equal(
             [
-                new TeamOutcomeEntry(RageQuitters, RoundTeamOutcome.Passed),
-                new TeamOutcomeEntry(PayToWin, RoundTeamOutcome.Current),
-                new TeamOutcomeEntry(CheatCodes, RoundTeamOutcome.Unreached),
+                new TeamOutcomeEntry(RageQuitters, TeamOutcome.Passed),
+                new TeamOutcomeEntry(PayToWin, TeamOutcome.Current),
+                new TeamOutcomeEntry(CheatCodes, TeamOutcome.Unreached),
             ],
             record.TeamOutcomes);
         Assert.Null(_round.TakeEndedRecord());
@@ -745,7 +746,7 @@ public class BuzzRoundTests
 
         var record = _round.TakeEndedRecord();
         Assert.NotNull(record);
-        Assert.All(record.TeamOutcomes, o => Assert.Equal(RoundTeamOutcome.Passed, o.Outcome));
+        Assert.All(record.TeamOutcomes, o => Assert.Equal(TeamOutcome.Passed, o.Outcome));
     }
 
     [Fact]

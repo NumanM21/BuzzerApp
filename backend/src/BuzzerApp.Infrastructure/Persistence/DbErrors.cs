@@ -1,8 +1,12 @@
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 
-namespace BuzzerApp.Api.Common;
+namespace BuzzerApp.Infrastructure.Persistence;
 
+/// <summary>
+/// Reads what a failed save means. Lives next to the DbContext so the PostgreSQL-specific part (SQLSTATE codes) stays
+/// in Infrastructure and the Api only asks "was that a unique violation?".
+/// </summary>
 public static class DbErrors
 {
     /// <summary>
@@ -20,6 +24,10 @@ public static class DbErrors
         constraintName = null;
         return false;
     }
+
+    /// <summary>True when the unique index that failed covers the given column, e.g. to say which of two names clashed.</summary>
+    public static bool IsUniqueViolationOn(this DbUpdateException ex, string column) =>
+        ex.IsUniqueViolation(out var constraint) && constraint is not null && constraint.Contains(column, StringComparison.Ordinal);
 
     /// <summary>
     /// True when the save failed on a foreign key. A delete guard that checks "is anything using this?" first can still

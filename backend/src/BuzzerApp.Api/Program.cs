@@ -1,5 +1,3 @@
-using System.Text.Json;
-using System.Text.Json.Serialization;
 using BuzzerApp.Api.Common;
 using BuzzerApp.Api.Features.Archive;
 using BuzzerApp.Api.Features.Event;
@@ -37,9 +35,8 @@ builder.Services.AddProblemDetails();
 // reports as a 500, while Production answers 400. Turning it off keeps both environments identical.
 builder.Services.Configure<RouteHandlerOptions>(o => o.ThrowOnBadRequest = false);
 
-// Enums go out as "admin" / "add" rather than numbers; AddRealtime configures the same converter for SignalR.
-builder.Services.ConfigureHttpJsonOptions(o =>
-    o.SerializerOptions.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.CamelCase)));
+// AddRealtime applies the same conventions to SignalR.
+builder.Services.ConfigureHttpJsonOptions(o => AppJson.Configure(o.SerializerOptions));
 
 // dotnet ef stops the host at Build(), so the seeding below never runs while generating migrations.
 var app = builder.Build();

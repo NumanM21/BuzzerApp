@@ -77,6 +77,9 @@ public sealed partial class ValidationErrors
 
     public IResult ToResult() => Results.ValidationProblem(_errors);
 
+    /// <summary>The same errors for a feature service to return; <see cref="ResultHttp"/> renders it exactly as <see cref="ToResult"/> does.</summary>
+    public Error ToError() => new(ErrorKind.Validation, "One or more validation errors occurred.", Fields: new Dictionary<string, string[]>(_errors));
+
     private ValidationErrors Length(string field, string? value, int min, int max, string label)
     {
         var length = value?.Trim().Length ?? 0;

@@ -1,21 +1,19 @@
-using BuzzerApp.Core.Domain;
 using BuzzerApp.Core.Rounds;
-using BuzzerApp.Infrastructure.Persistence;
-using Microsoft.AspNetCore.SignalR;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
 namespace BuzzerApp.Api.Realtime;
 
 /// <summary>
-/// Owns the one live round (D5, D14) and connects it to the outside: loads the roster, queues finished rounds for
-/// saving, and broadcasts snapshots. Singleton, so it never holds a DbContext; it opens a scope when it needs one.
+/// Owns the one live round (D5, D14) and coordinates what happens around each change to it: the roster is captured at
+/// Begin, finished rounds are queued for saving in the order the round produced them, and the new state is broadcast.
+/// It holds the rules about order; the database and SignalR sit behind <see cref="IRosterSource"/> and
+/// <see cref="IRoundBroadcaster"/>. Singleton.
 /// </summary>
 public sealed class RoundService : IRoundTicker
 {
     private readonly BuzzRound _round;
-    private readonly IServiceScopeFactory _scopes;
-    private readonly IHubContext<GameHub, IGameClient> _hub;
+    private readonly IRosterSource _roster;
+    private readonly IRoundBroadcaster _broadcaster;
     private readonly RoundPersistenceQueue _persistence;
     private readonly ILogger<RoundService> _logger;
 
@@ -35,14 +33,14 @@ public sealed class RoundService : IRoundTicker
     public RoundService(
         TimeProvider time,
         IOptions<RoundSettings> settings,
-        IServiceScopeFactory scopes,
-        IHubContext<GameHub, IGameClient> hub,
+        IRosterSource roster,
+        IRoundBroadcaster broadcaster,
         RoundPersistenceQueue persistence,
         ILogger<RoundService> logger)
     {
         _round = new BuzzRound(time, settings.Value);
-        _scopes = scopes;
-        _hub = hub;
+        _roster = roster;
+        _broadcaster = broadcaster;
         _persistence = persistence;
         _logger = logger;
     }
@@ -51,13 +49,16 @@ public sealed class RoundService : IRoundTicker
 
     public AdminRoundSnapshot GetAdminSnapshot() => _round.GetAdminSnapshot();
 
+    /// <summary>Both snapshots of the same state, for anyone who sends the pair (a broadcast, an admin connecting).</summary>
+    public (PublicRoundSnapshot Public, AdminRoundSnapshot Admin) GetSnapshots() => _round.GetSnapshots();
+
     /// <summary>
     /// Captures the roster now (D13): players of the event with a team. Two admins pressing Begin together is fine:
     /// the second gets <c>round.notIdle</c>.
     /// </summary>
     public async Task<RoundResult> BeginAsync(int eventId, CancellationToken ct = default)
     {
-        var roster = await LoadRosterAsync(eventId, ct);
+        var roster = await _roster.LoadAsync(eventId, ct);
         return await ApplyAsync(round =>
         {
             var result = round.Begin(roster);
@@ -136,10 +137,8 @@ public sealed class RoundService : IRoundTicker
         await _broadcastGate.WaitAsync();
         try
         {
-            var publicSnapshot = _round.GetPublicSnapshot();
-            var adminSnapshot = _round.GetAdminSnapshot();
-            await _hub.Clients.All.RoundUpdated(publicSnapshot);
-            await _hub.Clients.Group(GameGroups.Admins).AdminRoundUpdated(adminSnapshot);
+            var (publicSnapshot, adminSnapshot) = _round.GetSnapshots();
+            await _broadcaster.BroadcastAsync(publicSnapshot, adminSnapshot);
         }
         catch (Exception ex)
         {
@@ -151,22 +150,5 @@ public sealed class RoundService : IRoundTicker
         {
             _broadcastGate.Release();
         }
-    }
-
-    private async Task<List<RosterEntry>> LoadRosterAsync(int eventId, CancellationToken ct)
-    {
-        await using var scope = _scopes.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-
-        // Display names only: the snapshots built from the roster go to every player (D19). Sorted so the same data
-        // always gives the same roster.
-        var rows = await db.Players.AsNoTracking()
-            .Where(p => p.EventId == eventId && p.Role == PlayerRole.Player && p.TeamId != null)
-            .Join(db.Teams.Where(t => t.EventId == eventId), p => p.TeamId, t => (int?)t.Id,
-                (p, t) => new { PlayerId = p.Id, p.DisplayName, TeamId = t.Id, TeamName = t.Name })
-            .OrderBy(r => r.TeamId)
-            .ThenBy(r => r.PlayerId)
-            .ToListAsync(ct);
-        return rows.ConvertAll(r => new RosterEntry(r.PlayerId, r.DisplayName, r.TeamId, r.TeamName));
     }
 }
