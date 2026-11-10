@@ -11,6 +11,8 @@ import type {
   Team,
   TeamScore,
 } from '@/api/types';
+import type { TeamTurnStatus } from '@/domain/round';
+import type { AdminRoundSnapshot, BuzzEntry, PublicRoundSnapshot, TeamQueueEntry } from '@/realtime/types';
 
 // Test data with neutral names ("Team 1", "Player 7") and as many teams or players as a test asks for. Tests never
 // use a real year's teams: the count, names, colours and icons change every year.
@@ -155,4 +157,55 @@ interface ProblemOptions {
 /** The body of a failed call, as the server's ProblemDetails. */
 export function problem(status: number, { title, detail, errors }: ProblemOptions = {}): ProblemDetails {
   return { title: title ?? `Problem ${status}`, status, ...(detail && { detail }), ...(errors && { errors }) };
+}
+
+/**
+ * A queue in buzz order: one entry per id in `teamIds` (positions from 1), each with the status `statusAt` gives
+ * its index (all `waiting` by default). Pass the ids in an order unlike their numbers to catch code that confuses
+ * a team's id with its place in the queue.
+ */
+export function makeTeamQueue(
+  teamIds: readonly number[],
+  statusAt: (index: number) => TeamTurnStatus = () => 'waiting',
+): TeamQueueEntry[] {
+  return teamIds.map((teamId, index) => ({
+    position: index + 1,
+    teamId,
+    teamName: `Team ${teamId}`,
+    buzzedByDisplayName: `Player ${teamId * 10}`,
+    status: statusAt(index),
+  }));
+}
+
+/** An idle round at version 1, unless told otherwise. */
+export function makePublicSnapshot(overrides: Partial<PublicRoundSnapshot> = {}): PublicRoundSnapshot {
+  return {
+    version: 1,
+    roundId: null,
+    phase: 'idle',
+    roundStartedAt: null,
+    teamQueue: [],
+    currentTeamId: null,
+    windowEndsAt: null,
+    serverNow: '2030-01-01T20:00:00.000Z',
+    ...overrides,
+  };
+}
+
+/** One counted buzz per queue entry, 100 ms apart, in queue order. */
+export function makeBuzzes(queue: readonly TeamQueueEntry[]): BuzzEntry[] {
+  return queue.map((entry, index) => ({
+    sequence: index + 1,
+    playerId: entry.teamId * 10,
+    displayName: entry.buzzedByDisplayName,
+    teamId: entry.teamId,
+    teamName: entry.teamName,
+    offsetMs: index * 100,
+    countedForTeam: true,
+  }));
+}
+
+export function makeAdminSnapshot(overrides: Partial<AdminRoundSnapshot> = {}): AdminRoundSnapshot {
+  const base = makePublicSnapshot(overrides);
+  return { ...base, buzzes: makeBuzzes(base.teamQueue), currentSince: null, ...overrides };
 }
