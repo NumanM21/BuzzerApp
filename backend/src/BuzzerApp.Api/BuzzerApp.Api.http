@@ -1,7 +1,98 @@
 @host = http://localhost:5283
+# Dev placeholder values from the B2 setup (see docs/BackendSteps.md); change them if you changed your User Secrets.
+@joinCode = DEV-2026
+@adminName = Dev Admin
+@adminPin = 1234
 
-# Placeholder until real endpoints exist (B3+)
+# Each request below is independent. In VS / VS Code the cookie jar is shared, so after a successful
+# register or sign-in the later requests (me, sign-out) are authenticated as that player.
+
+### OpenAPI document (Development only)
 GET {{host}}/openapi/v1.json
 Accept: application/json
 
-###
+### Active event (public): name, year, themeKey
+GET {{host}}/api/event
+
+### Teams for the register screen (public). Expect 200
+GET {{host}}/api/event/teams?code={{joinCode}}
+
+### Wrong join code. Expect 404
+GET {{host}}/api/event/teams?code=WRONG
+
+### Register OK. Expect 201 + Set-Cookie + the me body
+POST {{host}}/api/session/register
+Content-Type: application/json
+
+{ "joinCode": "{{joinCode}}", "realName": "Alice Smith", "displayName": "Ally", "pin": "4321", "teamId": 1 }
+
+### Register again with the same real name (any case/spacing). Expect 409 "Sign in instead"
+POST {{host}}/api/session/register
+Content-Type: application/json
+
+{ "joinCode": "{{joinCode}}", "realName": "  alice SMITH ", "displayName": "Other One", "pin": "4321", "teamId": 1 }
+
+### Register with a taken display name. Expect 409 "Pick a different one"
+POST {{host}}/api/session/register
+Content-Type: application/json
+
+{ "joinCode": "{{joinCode}}", "realName": "Bob Jones", "displayName": "ALLY", "pin": "4321", "teamId": 1 }
+
+### Register with invalid input (short name, empty display name, non-digit PIN). Expect 400 listing every field
+POST {{host}}/api/session/register
+Content-Type: application/json
+
+{ "joinCode": "{{joinCode}}", "realName": "A", "displayName": "", "pin": "12a4", "teamId": 1 }
+
+### Register with a bad join code. Expect 404
+POST {{host}}/api/session/register
+Content-Type: application/json
+
+{ "joinCode": "WRONG", "realName": "Carol Jones", "displayName": "Caz", "pin": "4321", "teamId": 1 }
+
+### Register with a team that doesn't exist in the event. Expect 400 (teamId)
+POST {{host}}/api/session/register
+Content-Type: application/json
+
+{ "joinCode": "{{joinCode}}", "realName": "Carol Jones", "displayName": "Caz", "pin": "4321", "teamId": 9999 }
+
+### Sign in OK (case-insensitive name). Expect 200 + Set-Cookie
+POST {{host}}/api/session/signin
+Content-Type: application/json
+
+{ "joinCode": "{{joinCode}}", "realName": "alice smith", "pin": "4321" }
+
+### Sign in as the seeded admin. Expect 200, role "admin", no team
+POST {{host}}/api/session/signin
+Content-Type: application/json
+
+{ "joinCode": "{{joinCode}}", "realName": "{{adminName}}", "pin": "{{adminPin}}" }
+
+### Wrong PIN. Expect 401 "Real name or PIN is incorrect."
+POST {{host}}/api/session/signin
+Content-Type: application/json
+
+{ "joinCode": "{{joinCode}}", "realName": "Alice Smith", "pin": "0000" }
+
+### Unknown name. Expect the SAME 401 as the wrong PIN above
+POST {{host}}/api/session/signin
+Content-Type: application/json
+
+{ "joinCode": "{{joinCode}}", "realName": "Nobody Here", "pin": "0000" }
+
+### Rate limit: send this 6 times within 5 minutes (a "wrong PIN" for one name).
+### Attempts 1-5 return 401; the 6th returns 429 + Retry-After, even with the right PIN.
+### Other names are unaffected. The counter resets after 5 minutes or an app restart.
+POST {{host}}/api/session/signin
+Content-Type: application/json
+
+{ "joinCode": "{{joinCode}}", "realName": "Rate Limit Test", "pin": "0000" }
+
+### Me (signed in). Expect 200 with the caller's own real name, team from the DB
+GET {{host}}/api/session/me
+
+### Sign out. Expect 204 and the cookie cleared
+POST {{host}}/api/session/signout
+
+### Me after sign-out. Expect 401 (not a redirect)
+GET {{host}}/api/session/me
