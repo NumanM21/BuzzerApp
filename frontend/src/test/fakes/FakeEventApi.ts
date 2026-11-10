@@ -7,6 +7,8 @@ import { CallRecorder } from './CallRecorder';
 export class FakeEventApi implements EventApi {
   event: EventInfo = makeEventInfo();
   joinTeams: JoinTeam[] = makeJoinTeams(3);
+  /** The join code of every `getJoinTeams` call, in order. */
+  readonly joinTeamCodes: string[] = [];
 
   private readonly recorder = new CallRecorder();
 
@@ -21,13 +23,15 @@ export class FakeEventApi implements EventApi {
   /** Forgets the calls so far, to assert only on what a later step did. */
   clearCalls(): void {
     this.recorder.clearCalls();
+    this.joinTeamCodes.length = 0;
   }
 
   getEvent(): Promise<EventInfo> {
     return this.recorder.run('getEvent', () => this.event);
   }
 
-  getJoinTeams(): Promise<JoinTeam[]> {
+  getJoinTeams(joinCode: string): Promise<JoinTeam[]> {
+    this.joinTeamCodes.push(joinCode);
     return this.recorder.run('getJoinTeams', () => this.joinTeams);
   }
 }
