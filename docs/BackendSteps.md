@@ -2,7 +2,7 @@
 
 > **Audience:** AI workers implementing one step each (usually in a fresh session).
 > Adds implementation detail to `docs/PlanMVP.md` §10 Milestone B. **PlanMVP wins on product decisions; this file wins on implementation detail.**
-> Written 9 Nov 2026. **B0 and B1 are done and merged into `main`; B2 is done on branch `backend-b2`, B3 on `backend-b3-auth` and B4 on `backend-b4` (each DONE section records what was actually produced).** Start at B5.
+> Written 9 Nov 2026. **B0 and B1 are done and merged into `main`; B2 is done on branch `backend-b2`, B3 on `backend-b3-auth`, B4 on `backend-b4` and B5 on `backend-b5` (each DONE section records what was actually produced).** Start at B6.
 
 | Step | Branch | Suggested model | Why |
 |---|---|---|---|
@@ -11,7 +11,7 @@
 | B2 | `backend-b2` — **DONE** | Sonnet | Standard EF Core; traps listed below |
 | B3 | `backend-b3-auth` — **DONE** | Sonnet + review | Security-sensitive |
 | B4 | `backend-b4` — **DONE** | Sonnet | CRUD |
-| B5 | `backend-b5-scores` | Sonnet | CRUD + `ScoreMath` |
+| B5 | `backend-b5` — **DONE** | Sonnet | CRUD + `ScoreMath` |
 | B6 | `backend-b6-realtime` | **Opus** (or Sonnet + Opus review) | Singleton + clock + SignalR + ordered persistence; bugs only show up under timing |
 | B7 | `backend-b7-archive` | Sonnet | Pure builder + 2 endpoints |
 | B8 | `backend-b8-hosting` | Sonnet | Static file hosting |
@@ -255,7 +255,24 @@ Original brief:
 
 ---
 
-## B5 — Scores
+## B5 — Scores — DONE
+
+Kept for reference; **do not redo.** What exists now, including where it differs from the original brief:
+
+- **Api:** `Features/Scores/ScoreEndpoints.cs` (route group, records, handlers; same nested admin-group shape as B4) and one line in `Program.cs`. All five routes of §8.5 exist: `GET /api/scores/teams` (any signed-in user), `GET /api/scores/players`, `GET`/`POST /api/scores/adjustments` and `POST /api/scores/adjustments/{id}/reverse` (admin). Every successful write calls `ScoresChangedAsync()` only (never `TeamsChanged`); rejected writes notify nobody.
+- **Wire format:** the request is `{ target: "team"|"player", targetId, amount, multiplier = 1, direction: "add"|"remove", reason? }` and every field is nullable in the C# record, so a missing `direction` is a 400 and not a silent "add" (a non-nullable enum would default to its first member). All invalid fields are reported in one response. An adjustment row is `{ id, target, targetId, targetName, amount, reason, reversesAdjustmentId, isReversed, createdAt, createdByDisplayName }`; players are named by **display name** there (no real names in the history). `POST` adjustments and `POST` reverse both return **201** with that row (`isReversed` is false on the new row).
+- **Decisions not in the brief:**
+  - **Totals must stay inside `int`.** Totals are summed as `long` in SQL, but `Ranking.Rank` and the responses use `int`, and a ledger row can't be edited, so one overflowing total would break every leaderboard for good. A create that would take the target's total outside the `int` range is a **400** on `amount`; a reverse that would do so (possible when other rows on the target cancel the original) is a **409**. B7 must also sum as `long` (`Sum(a => (long)a.Amount)`; the plain `Sum` on `int` overflows).
+  - A reason is trimmed, a blank one is stored as null, and more than 200 characters is a 400 (the column is `varchar(200)`).
+  - Reversing a row that is itself a reversal is a 400 (as briefed); the reversal row has no reason of its own, `reversesAdjustmentId` says what it is.
+  - A promoted player's old rows can still be reversed (the reverse doesn't check the role), but they no longer appear in `GET /api/scores/players`, and new adjustments can't target them.
+  - `take` that isn't a number is a 400 (the binder rejects it); numbers outside 1–100 are clamped.
+- **Order (verified by tests):** teams by total descending then `SortOrder`, `Id`; players by total descending, display name (ignoring case), `Id`; history `CreatedAt` descending, `Id` descending. The team and player totals are looked up from a dictionary and never enumerated into a response.
+- **Api tests:** 58 new (257 Api tests total). `ScoreEndpointsTests` is a partial class split by endpoint (`.cs` reads and create, `.Create.cs`, `.History.cs`, `.Reverse.cs`), plus two notification tests in `WriteNotificationTests`. Ranking and ordering run over 2, 6, 13 and 30 teams or players (`Counts`), with ties, negatives and teams with no rows, and look only at the ids each test created. Ranks are global (the shared database holds other tests' teams), so they are checked against the rule applied to the whole response, and the explicit tie test uses totals around 1.5 billion so no other test's team lands between them. Mutation-checked: disabling the 23505 catch in reverse makes `Concurrent_reverses_of_one_adjustment_produce_exactly_one_reversal` fail. Also run with `Event:Teams` set to 3 and then 8 teams: all green.
+- **Not run live:** the new `.http` requests (B5 section at the end of the file) were not run against the dev database, to keep the developer's dev data untouched; the integration tests cover the same cases against a throwaway PostgreSQL. Nothing in `Core` changed.
+- **Deviation, branch name:** `backend-b5` (already created by the developer), not `backend-b5-scores`.
+
+Original brief:
 
 - `Features/Scores/ScoreEndpoints.cs` (§8.5). Use `ScoreMath.SignedAmount` for the amount and `Ranking.Rank` for team ranks.
 - Adjustment target: a team in the event, or a player in the event with role `Player` (else 400). Set `CreatedByPlayerId` = the current admin. Return 201.
@@ -306,6 +323,7 @@ Original brief:
 - `Features/Archive/ArchiveEndpoints.cs`:
   - `POST /api/archive/finalize` (admin): `roundsPlayed` = rounds with `LockedAt != null`; `totalBuzzes` = BuzzRecord count. Serialize with `JsonSerializerDefaults.Web`, upsert `EventArchive` (unique per event), set `Event.FinalizedAt`. Can be re-run.
   - `GET /api/archive/{eventId}/export` (admin): `Results.File(bytes, "application/json", $"buzzer-archive-{year}.json")`; 404 if not finalized.
+- **From B5:** sum the ledger as `long` (`Sum(a => (long)a.Amount)`) and read it as `int`: the score endpoints keep every total inside the `int` range, but the plain `Sum` on `int` would still overflow. The player list excludes admins, as in `GET /api/scores/players`. `Ranking.Rank` needs input already in the default order (B5's `GetTeamScoresAsync` is a working example).
 - **Tests:** follow the shared rule on not hard-coding the 2026 event: `ArchiveBuilder` tests use several team counts (including one team and a team with no members) and tied totals; the endpoint tests build their own teams and compare with the database.
 - **Order (shared rule):** the document must be the same for the same data, so the endpoint passes `ArchiveBuilder` **pre-sorted** input and the builder sorts nothing implicitly. Teams: rank, then `SortOrder`, `Id`. Members: display name (ignoring case), `Id`. Players: rank, then display name (ignoring case), `Id`. Test that building twice from the same input, and from the same input shuffled, gives identical JSON apart from `generatedAt`.
 - **Check:** finalize → export → the file has `schemaVersion: 1`, correct totals and ranks. **Don't commit the file** (`.gitignore` already covers `buzzer-archive-*.json`).
