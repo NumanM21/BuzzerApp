@@ -11,7 +11,7 @@ namespace BuzzerApp.Api.Tests.Seeding;
 
 /// <summary>
 /// The seeder against a database of its own (same container): no web host. Each test seeds the way a restart with a
-/// given configuration would, and uses years of its own so the tests can share that database.
+/// given configuration would, and uses join codes of its own so the tests can share that database.
 /// </summary>
 [Collection(ApiCollection.Name)]
 public class EventSeederTests(ApiFactory factory)
@@ -19,9 +19,8 @@ public class EventSeederTests(ApiFactory factory)
     // One migrated database for the whole class; created by the first test that needs it.
     private static readonly SemaphoreSlim Gate = new(1, 1);
     private static string? _connectionString;
-    private static int _nextYear = 3000;
 
-    private static int NewYear() => Interlocked.Increment(ref _nextYear);
+    private static string NewCode() => ApiHelpers.UniqueName("CODE");
 
     private async Task<AppDbContext> OpenAsync()
     {
@@ -47,9 +46,9 @@ public class EventSeederTests(ApiFactory factory)
     private static AppDbContext Create(string connectionString) =>
         new(new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(connectionString).Options);
 
-    private static EventSeedOptions Config(int year, string joinCode, int teams = 3) => new()
+    private static EventSeedOptions Config(string joinCode, int teams = 3, int year = 2027, string name = "Games Night") => new()
     {
-        Name = $"Games Night {year}",
+        Name = name,
         Year = year,
         JoinCode = joinCode,
         ThemeKey = "default",
@@ -69,10 +68,10 @@ public class EventSeederTests(ApiFactory factory)
         await seeder.SeedAsync();
     }
 
-    private async Task<Event> EventOfAsync(int year)
+    private async Task<Event> EventOfAsync(string joinCode)
     {
         await using var db = await OpenAsync();
-        return await db.Events.AsNoTracking().SingleAsync(e => e.Year == year);
+        return await db.Events.AsNoTracking().SingleAsync(e => e.JoinCode == joinCode);
     }
 
     private async Task<int> ActiveEventIdAsync()
@@ -87,13 +86,13 @@ public class EventSeederTests(ApiFactory factory)
     [InlineData(8)]
     public async Task The_first_start_creates_the_event_its_teams_in_config_order_and_the_admins(int teamCount)
     {
-        var year = NewYear();
-        var config = Config(year, $"CODE-{year}", teamCount);
+        var code = NewCode();
+        var config = Config(code, teamCount);
 
         await SeedAsync(config);
 
-        var ev = await EventOfAsync(year);
-        Assert.Equal((config.Name, config.JoinCode, "default", true), (ev.Name, ev.JoinCode, ev.ThemeKey, ev.IsActive));
+        var ev = await EventOfAsync(code);
+        Assert.Equal((config.Name, config.Year, "default", true), (ev.Name, ev.Year, ev.ThemeKey, ev.IsActive));
         Assert.Equal(ev.Id, await ActiveEventIdAsync());
         await using var db = await OpenAsync();
         var teams = await db.Teams.AsNoTracking().Where(t => t.EventId == ev.Id).OrderBy(t => t.SortOrder).ThenBy(t => t.Id).ToListAsync();
@@ -107,10 +106,10 @@ public class EventSeederTests(ApiFactory factory)
     [Fact]
     public async Task A_restart_never_undoes_what_admins_changed()
     {
-        var year = NewYear();
-        var config = Config(year, $"CODE-{year}");
+        var code = NewCode();
+        var config = Config(code);
         await SeedAsync(config);
-        var ev = await EventOfAsync(year);
+        var ev = await EventOfAsync(code);
         string pinHashBefore;
         await using (var db = await OpenAsync())
         {
@@ -122,83 +121,54 @@ public class EventSeederTests(ApiFactory factory)
             pinHashBefore = await db.Players.Where(p => p.EventId == ev.Id).Select(p => p.PinHash).SingleAsync();
         }
 
-        // The same configuration again, but with a different admin PIN: an existing admin's PIN is never reset.
-        await SeedAsync(config, Admins(pin: "9999"));
+        // The same join code again, with a different admin PIN and event name: nothing that exists is overwritten.
+        await SeedAsync(Config(code, name: "Renamed In Config"), Admins(pin: "9999"));
 
         await using var after = await OpenAsync();
         var names = await after.Teams.Where(t => t.EventId == ev.Id).OrderBy(t => t.SortOrder).Select(t => t.Name).ToListAsync();
         Assert.Equal(["Renamed By Admin", "Team 3"], names);
         Assert.Equal(pinHashBefore, await after.Players.Where(p => p.EventId == ev.Id).Select(p => p.PinHash).SingleAsync());
-        Assert.Equal(1, await after.Events.CountAsync(e => e.Year == year));
+        Assert.Equal("Games Night", (await EventOfAsync(code)).Name);
     }
 
     [Fact]
-    public async Task Changing_the_join_code_keeps_the_same_event_and_everything_in_it()
+    public async Task A_new_join_code_is_a_new_session_even_in_the_same_year_and_the_old_one_is_kept_but_inactive()
     {
-        // The first version looked the event up by join code, so a changed code made a second, empty event and
-        // deactivated the real one mid-evening.
-        var year = NewYear();
-        await SeedAsync(Config(year, $"LEAKED-{year}"));
-        var before = await EventOfAsync(year);
+        // Two games nights in one year, or a replacement for a session that went wrong: the code is the identity.
+        var first = NewCode();
+        var second = NewCode();
+        await SeedAsync(Config(first, year: 2027));
+        var old = await EventOfAsync(first);
 
-        await SeedAsync(Config(year, $"FRESH-{year}"));
+        await SeedAsync(Config(second, teams: 5, year: 2027));
 
-        var after = await EventOfAsync(year);   // SingleAsync: still exactly one event for the year
-        Assert.Equal(before.Id, after.Id);
-        Assert.Equal($"FRESH-{year}", after.JoinCode);
-        Assert.True(after.IsActive);
-        await using var db = await OpenAsync();
-        Assert.Equal(3, await db.Teams.CountAsync(t => t.EventId == after.Id));
-        Assert.Equal(1, await db.Players.CountAsync(p => p.EventId == after.Id));
-    }
-
-    [Fact]
-    public async Task A_new_year_creates_a_new_active_event_and_leaves_the_old_one_intact_but_inactive()
-    {
-        var lastYear = NewYear();
-        var thisYear = NewYear();
-        await SeedAsync(Config(lastYear, $"CODE-{lastYear}"));
-        var old = await EventOfAsync(lastYear);
-
-        await SeedAsync(Config(thisYear, $"CODE-{thisYear}", teams: 5));
-
-        var current = await EventOfAsync(thisYear);
+        var current = await EventOfAsync(second);
         Assert.NotEqual(old.Id, current.Id);
         Assert.Equal(current.Id, await ActiveEventIdAsync());
-        Assert.False((await EventOfAsync(lastYear)).IsActive);
+        Assert.False((await EventOfAsync(first)).IsActive);
         await using var db = await OpenAsync();
         Assert.Equal(3, await db.Teams.CountAsync(t => t.EventId == old.Id));
+        Assert.Equal(1, await db.Players.CountAsync(p => p.EventId == old.Id));
         Assert.Equal(5, await db.Teams.CountAsync(t => t.EventId == current.Id));
         Assert.Equal(1, await db.Players.CountAsync(p => p.EventId == current.Id));   // admins are seeded per event
     }
 
     [Fact]
-    public async Task Reusing_an_earlier_years_join_code_fails_with_a_clear_message_and_changes_nothing()
+    public async Task Going_back_to_an_earlier_join_code_makes_that_session_the_active_one_again_without_changing_it()
     {
-        var lastYear = NewYear();
-        var thisYear = NewYear();
-        await SeedAsync(Config(lastYear, $"SAME-{lastYear}"));
-        var activeBefore = await ActiveEventIdAsync();
+        // Without this the earlier event stayed inactive while its admins were the configured ones, so nobody could sign in.
+        var first = NewCode();
+        var second = NewCode();
+        await SeedAsync(Config(first));
+        await SeedAsync(Config(second));
+        var firstEvent = await EventOfAsync(first);
 
-        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => SeedAsync(Config(thisYear, $"SAME-{lastYear}")));
+        await SeedAsync(Config(first));
 
-        Assert.Contains(lastYear.ToString(System.Globalization.CultureInfo.InvariantCulture), ex.Message, StringComparison.Ordinal);
-        Assert.Equal(activeBefore, await ActiveEventIdAsync());
-        await using var db = await OpenAsync();
-        Assert.False(await db.Events.AnyAsync(e => e.Year == thisYear));
-    }
-
-    [Fact]
-    public async Task Going_back_to_an_earlier_years_configuration_makes_that_event_the_active_one_again()
-    {
-        var first = NewYear();
-        var second = NewYear();
-        await SeedAsync(Config(first, $"CODE-{first}"));
-        await SeedAsync(Config(second, $"CODE-{second}"));
-
-        await SeedAsync(Config(first, $"CODE-{first}"));
-
-        Assert.Equal((await EventOfAsync(first)).Id, await ActiveEventIdAsync());
+        Assert.Equal(firstEvent.Id, await ActiveEventIdAsync());
         Assert.False((await EventOfAsync(second)).IsActive);
+        await using var db = await OpenAsync();
+        Assert.Equal(3, await db.Teams.CountAsync(t => t.EventId == firstEvent.Id));
+        Assert.Equal(1, await db.Players.CountAsync(p => p.EventId == firstEvent.Id));
     }
 }
