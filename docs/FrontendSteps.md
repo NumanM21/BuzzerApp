@@ -2,13 +2,13 @@
 
 > **Audience:** AI workers implementing one step each in a fresh session, and the developer who starts and reviews them.
 > Adds implementation detail to `docs/PlanMVP.md` §10 Milestone F. **PlanMVP wins on product decisions; this file wins on frontend implementation detail.**
-> Written 10 Nov 2026. **Nothing is built yet: start at F0.**
+> Written 10 Nov 2026. **F0 is done: start at F1.**
 >
 > The backend is finished and is not changed by these steps. If a step seems to need a backend change, stop and ask the developer.
 
 | Step | Branch | Suggested model | Scope |
 |---|---|---|---|
-| F0 | `frontend-f0` | **Opus 5.5** | Packages, tooling, folders, composition root, MVVM base, theme contract + `default` pack + `/dev/theme`, guard tests, CI. Sets the patterns every later step copies |
+| F0 | `frontend-f0` — **DONE** | **Opus 5.5** | Packages, tooling, folders, composition root, MVVM base, theme contract + `default` pack + `/dev/theme`, guard tests, CI. Sets the patterns every later step copies |
 | F1 | `frontend-f1` | Sonnet 5.5 | `arcade-2026` theme pack, spare team colours, `docs/ThemePacks.md` (how to add next year's pack) |
 | F2 | `frontend-f2` | Sonnet 5.5 | API client, wire types, one API class per feature, stores, MSW handlers, test factories |
 | F3 | `frontend-f3` | Sonnet 5.5 | `/join` (new player / sign in), route guards, layout shell + navigation |
@@ -204,7 +204,34 @@ Teams and players change every year: 2026 has six teams; another year may have t
 
 ---
 
-## F0 — Foundations
+## F0 — Foundations — DONE
+
+> **Done 10 Nov 2026. Kept for reference; do not redo.**
+>
+> **What exists** (`frontend/src/`)
+> - Packages (versions checked with `npm view`): `@fluentui/react-components` 9.75.2, `@fluentui/react-icons` 2.0.345, `react-router` 8.5.1, `mobx` 7.1.6, `mobx-react-lite` 5.1.2; dev `vitest` 5.1.0, `jsdom` 31.0.0, `@testing-library/react` 16.3.3, `/dom` 10.4.2, `/user-event` 14.6.9, `/jest-dom` 7.0.1 (imported as `@testing-library/jest-dom/vitest`).
+> - Tooling: scripts `test`, `test:watch`; `lint` now runs with `--max-warnings 0`. `vite.config.ts` uses `defineConfig` from `vitest/config`, the dev proxy, and `resolve.tsconfigPaths: true` (Vite 8 reads the `@/*` alias from `tsconfig.app.json`, so the alias is written once). CI runs `npm test`. Template files removed; README rewritten; `<title>` is "Buzzer"; neutral favicon.
+> - `app/`: `AppServices.ts` (`AppServices { themes: ThemeCatalog }`, `createAppServices()`), `AppServicesContext.ts` (context + `useAppServices`), `AppServicesProvider.tsx`, `useViewModel.ts` (+ test, including StrictMode), `routes.ts` (`/` placeholder home, `/dev/theme` lazily and only when `import.meta.env.DEV`; it is absent from the production bundle), `App.tsx`. `main.tsx` builds services and router once, outside React, under `StrictMode`.
+> - `mvvm/`: `configureMobx`, `Loadable<T>` (`value`, `status`, `error`, `isLoading`, `load()`, `ensureLoaded()`; reload keeps the value, last started wins, never rejects), `Command<TArgs>` (`isRunning`, `error`, `run(...)` → `Promise<boolean>`, `clearError()`; ignores a second run, never rejects), `toError`. Tests for both.
+> - `domain/`: `buzzer.ts` (type **and** runtime list `buzzerVisualStates`), `names.ts` (name length limits), `themeCatalog.ts` (`PackKeys`, `ThemeCatalog`: how view models learn a pack's colour/icon keys without importing the theme).
+> - `theme/`: `types.ts` (contract; PlanMVP §9.2 updated to match), `appTokens.ts`, `buildFluentTheme.ts`, `registry.ts` (`themeKeys`, `resolveThemeKey`, `loadThemePack` with a per-key promise cache that forgets failures, `themeCatalog`), `ThemeRoot.tsx` (`ThemeRoot` with `scope: 'page' | 'section'`, and `ThemePackProvider` for an already loaded pack), `ThemePackContext.ts`, `useThemePack.ts` (`useThemePack`, `useCopy`, `useFormatScore`), `useTeamVisual.ts` (+ pure `resolveTeamVisual`), `defaultCopy.ts` (+ `mergeCopy`, `buzzerCopyKeys`), `formatScore.ts`, `contrast.ts` (colour parsing and WCAG contrast for the contract test), `cssCustomProperties.d.ts` (lets `style={{ '--team-fill': … }}` type-check), `packs/default/` (Fluent's web brand ramp, light, system fonts, colours `c1`–`c8`, shape icons `circle`, `square`, `triangle`, `diamond`, `generic`; `generic` is the fallback). Guard tests `packs.contract.test.ts` and `noHardcodedStyle.test.ts` (which also tests its own patterns), plus unit tests.
+> - `components/`: `Buzzer.tsx`, `TeamCard.tsx` (both `observer`), with tests.
+> - `features/dev/`: `ThemePreviewPage.tsx`, `ThemePreviewViewModel.ts` (+ unit test and one page test); `features/home/HomePage.tsx` placeholder.
+> - `test/`: `setup.ts`, `renderWithApp.tsx` (`renderWithApp`, `renderWithAppAsync`), `factories.ts`, `testServices.ts` (`createTestServices(overrides)`), `fakes/FakeThemeCatalog.ts`, `deferred.ts`, `flushPromises.ts`. `api/types.ts` has `Member` and `Team` only (for the factories).
+>
+> **Deviations and decisions**
+> - File names: `routes.ts` (no JSX), and the context split into `AppServicesContext.ts` + `AppServicesProvider.tsx` because Fast Refresh wants a `.tsx` file to export components only.
+> - `useViewModel<T extends object>` rather than `T extends ViewModel`: TypeScript rejects a class with none of an all-optional interface's members, which would have rejected every view model without `activate`/`dispose`.
+> - Theme tokens: verified in Fluent's source that `FluentProvider` writes **every** key of the theme object as a CSS variable and that portals (dialogs, menus) get the provider's class, so the app tokens are extra keys on the Fluent theme as planned; no `document.documentElement` fallback. `ThemeRoot` with `scope="page"` additionally sets the `<html>` background and `color-scheme` (over-scroll area, scroll bars).
+> - Contract refinements over the §9 sketch: `text.body/muted` added (needed for the contrast check), team colours carry `onFill`, `teams.fallback`, `buzzer.radius` (so a pack can square every Fluent corner and still keep a round buzzer), buzzer `colors: 'team' | {fill, text}`, `numbers.scoreDigits`, `effects.scanlines` takes a colour (so the overlay has no hard-coded colour), `copy` keys are those in `defaultCopy.ts`.
+> - Griffel (Fluent's CSS-in-JS) rejects `borderWidth`/`borderStyle`/`borderColor`; use `...shorthands.border(width, style, color)`.
+> - The style guard also catches named colours on colour properties (`color: 'red'`), beyond the brief's list. It skips comments, `src/test/` and test files.
+> - ESLint layer rules use `regex` patterns; every source file also may not import with `../` (so the rules can't be bypassed) nor import `@/test/`. View models, stores, MVVM helpers and domain files may not use `window`, `document`, `localStorage`, `sessionStorage`, `navigator`, `location` (`no-restricted-globals`). In a feature folder, `.ts` files follow the view-model rules and `.tsx` files the view rules. `observer` is registered as a component wrapper for the Fast Refresh rule. Each rule was proved with a deliberately wrong import per layer (32 errors), then removed; `#ff0000` in `TeamCard` failed the guard test, then was removed.
+> - MobX 7, checked against its changelog: `observable.ref` is now `observableRef` (and similar named exports); `makeAutoObservable`, `runInAction`, `enforceActions` work as the shared rules describe. Injected services and constants are excluded with `false` overrides (see the preview view model). The test setup turns any `[MobX]` warning into a test failure.
+> - jsdom lacks `matchMedia` and `ResizeObserver` (Fluent needs both); `setup.ts` stubs them. Small SVG icons are inlined as `data:` URLs by Vite, large files resolve to `/src/...`; the contract test accepts both.
+> - Buzzer: browsers deliver `pointerdown` to a **disabled** button, so the component checks `disabled` itself (a test caught it).
+> - `npm audit` reports a moderate `minimatch` advisory inside the ESLint/typescript-eslint toolchain (dev only; the suggested fix downgrades ESLint). Not acted on.
+> - Checked by the worker: lint, build, tests (172), and the dev server serving `/` and `/dev/theme` and their modules. **Not** checked in a real browser (the worker had none): the developer's look at `/dev/theme` at 360 px is the visual check.
 
 **Model:** Opus 5.5. **Read also:** PlanMVP §9 (theming), D30, D31, D34.
 
@@ -270,6 +297,8 @@ Teams and players change every year: 2026 has six teams; another year may have t
 
 **Model:** Sonnet 5.5. **Read also:** PlanMVP §9.3 (the look, the palette table, the icon rules). Look at `images/team-logos/group-participating-teams.png` and one `<team>-face.png` for the style.
 
+**From F0:** the contract is `src/theme/types.ts` (PlanMVP §9.2 shows its shape); copy `packs/default/index.ts` as the starting point. A buzzer state uses the team colour with `colors: 'team'`; scanlines are `effects: { scanlines: { color } }`; the buzzer's shape is `buzzer.radius` (separate from Fluent's radii, so square corners elsewhere don't make the buzzer square unless you want it). Team cards use Fluent's `borderRadiusLarge`/`borderRadiusMedium`, so the `borderRadius*` overrides square them too. Every colour must be opaque hex, `rgb()` or `hsl()` (no named colours, no alpha), and contrast is checked at 4.5:1 for text on surfaces, `onFill` on `fill` and fixed buzzer colours. Register the pack in the `loaders` object in `registry.ts` (its order is the preview's order).
+
 **Goal:** `packs/arcade-2026` and a guide that lets next year's pack be made by handing a design to an AI.
 
 **Packages:** `@fontsource/press-start-2p`, `@fontsource/vt323` (self-hosted fonts: nothing may depend on a CDN on event day).
@@ -306,6 +335,8 @@ Teams and players change every year: 2026 has six teams; another year may have t
 ## F2 — API layer and stores
 
 **Model:** Sonnet 5.5. **Read also:** Appendix A (all of it).
+
+**From F0:** `src/api/types.ts` already holds `Member` and `Team` (needed by the factories): complete the file, don't recreate it. `src/test/factories.ts` has `makeTeams(n, { membersPerTeam })` and `makeMembers(n, firstPlayerId)`. Add the stores to `AppServices` next to `themes` and to `createTestServices` (`src/test/testServices.ts`). `ApiError` should extend `Error`: `Loadable.error` and `Command.error` are `Error`, and `toError` passes subclasses through. Test helpers that exist: `deferred()` (settle a promise by hand), `flushPromises()` (microtasks only), `renderWithApp` / `renderWithAppAsync` (for a view that suspends). The test setup fails any test during which MobX warns. `ThemeRoot` in `App.tsx` takes the key from the event store.
 
 **Goal:** everything that talks REST, the stores that hold the results, and the test doubles later steps use. No screens yet, except that the app now loads the active event and uses its theme.
 
@@ -349,6 +380,8 @@ Teams and players change every year: 2026 has six teams; another year may have t
 ## F3 — Join, sign in, guards and the shell
 
 **Model:** Sonnet 5.5. **Read also:** PlanMVP D18, D19, D21, D22; Appendix A "Event" and "Session".
+
+**From F0:** routes are built in `app/routes.ts` (`createAppRoutes()`, `createAppRouter()`); `/` is a placeholder `features/home/HomePage.tsx` to replace with the redirect (delete it). `/dev/theme` must stay outside the guards. Name-length limits are in `@/domain/names` (`PERSON_NAME_MIN_LENGTH` …): validate against those.
 
 **Goal:** a person can register or sign in on a phone and lands on the right start page; every route is guarded; the layout and navigation exist for the screens that follow.
 
@@ -395,6 +428,8 @@ Teams and players change every year: 2026 has six teams; another year may have t
 ## F4 — Realtime
 
 **Model:** Opus 5.5. **Read also:** PlanMVP D5–D8, D13; Appendix A "Hub".
+
+**From F0:** `BuzzerVisualState` and the runtime list `buzzerVisualStates` are in `@/domain/buzzer`; put `getBuzzerState` next to them. To test StrictMode's activate → dispose → activate, use `renderHook(..., { reactStrictMode: true })` as `app/useViewModel.test.tsx` does: a `<StrictMode>` inside the wrapper did not replay effects.
 
 **Goal:** one SignalR connection per signed-in app, a round store every screen can read, and the pure rule that turns a snapshot into the buzzer's state. Bugs here show up as "my phone froze on event day", so the lifecycle rules below are the step.
 
@@ -452,6 +487,8 @@ Teams and players change every year: 2026 has six teams; another year may have t
 
 **Model:** Sonnet 5.5. **Read also:** PlanMVP §9.3 "Colour clash", D9, D13.
 
+**From F0:** `Buzzer` (`@/components/Buzzer`) takes `state`, `teamColorKey`, `label`, `sublabel?`, `disabled?`, `onPress`. It already fires on `pointerdown`, lets Enter/Space through once, ignores right clicks and (because browsers still send pointer events to a disabled button) ignores presses while `disabled`. The label for a state is `useCopy()[buzzerCopyKeys[state]]` (`@/theme/defaultCopy`). The view model should expose the queue position as a number; the view words it.
+
 **Goal:** the player's screen: a big buzzer and the team queue.
 
 **Do**
@@ -483,6 +520,8 @@ Teams and players change every year: 2026 has six teams; another year may have t
 ## F6 — Teams
 
 **Model:** Sonnet 5.5. **Read also:** PlanMVP §9.4, D17, D19–D21; Appendix A "Teams" and "Players".
+
+**From F0:** `TeamCard` (`@/components/TeamCard`) takes `name`, `colorKey`, `iconKey`, `members: TeamCardMember[]` (`{ id, displayName, realName?, isViewer? }`, so map the wire `Member` in the view model) and two slots: `action` (the card's ⋮ menu) and `renderMemberAction(member)` (the per-member ⋮ or ✎). Member rows are already 44 px high. For the create-team picker, `AppServices.themes` (a `ThemeCatalog`, `@/domain/themeCatalog`) gives a view model the active pack's `colorKeys` and `iconKeys` without importing the theme; the view draws each key with `useTeamVisual`.
 
 **Goal:** the shared Teams screen. Players see every team and edit their own names. Admins also rename, create and delete teams, edit anyone's names, move players and make admins.
 
@@ -520,6 +559,8 @@ Teams and players change every year: 2026 has six teams; another year may have t
 ## F7 — Scores
 
 **Model:** Sonnet 5.5. **Read also:** PlanMVP D25, D26; Appendix A "Scores".
+
+**From F0:** format scores with `useFormatScore()` (`@/theme/useThemePack`); it applies the pack's `numbers.scoreDigits` and puts a minus sign before the padding. Use `appTokens.fontNumeric` for score text.
 
 **Goal:** the team leaderboard for everyone and the scoring screen for admins.
 
@@ -769,4 +810,7 @@ End-to-end tests are a later addition (PlanMVP §11). Each step appends the scen
 
 | Step | Scenario | Why it needs a real browser |
 |---|---|---|
-| | | |
+| F0 | `/dev/theme` renders every registered pack (switch through all of them) without console errors | Real CSS, real asset loading and Fluent's portals; jsdom has no layout and stubs `ResizeObserver` |
+| F0 | One tap on the buzzer counts exactly one press ("Presses" on `/dev/theme`), also a fast double tap, and the page doesn't zoom | `pointerdown` vs click and `touch-action` only behave for real on a touch screen |
+| F0 | `/dev/theme` at 360 px wide, 1 and 13 teams, longest names: no horizontal scroll, names wrap | Layout and wrapping need a real rendering engine |
+| F0 | A dialog and a menu opened on `/dev/theme` use the selected pack's look | Portals render outside the page tree; only a browser shows that the CSS variables reach them |
