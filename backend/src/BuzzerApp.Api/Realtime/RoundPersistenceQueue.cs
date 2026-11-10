@@ -13,11 +13,21 @@ public sealed record LockedRoundWork(int EventId, LockedRoundRecord Record) : Ro
 public sealed record EndedRoundWork(EndedRoundRecord Record) : RoundPersistenceWork;
 
 /// <summary>
+/// Where <see cref="RoundService"/> puts round data to be saved. The order of the calls is the order the data is saved
+/// in, which is why the service makes each call while still holding its change gate; the interface lets a test stand in
+/// the middle of a call and prove that.
+/// </summary>
+public interface IRoundRecordSink
+{
+    void Enqueue(RoundPersistenceWork work);
+}
+
+/// <summary>
 /// Hands round records from the game (which must never wait on the database) to the single
 /// <see cref="RoundPersistenceWorker"/>. One reader keeps them in order, so a round's "ended" update can't
 /// run before its "locked" insert.
 /// </summary>
-public sealed class RoundPersistenceQueue
+public sealed class RoundPersistenceQueue : IRoundRecordSink
 {
     // Unbounded: a few records per round, and TryWrite then never fails or blocks the caller.
     private readonly Channel<RoundPersistenceWork> _channel =

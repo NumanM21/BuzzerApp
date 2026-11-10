@@ -254,6 +254,84 @@ public class RoundServiceTests
         Assert.Equal(RoundPhase.Idle, _broadcaster.Sent[^1].Public.Phase);
     }
 
+    /// <summary>Stops inside the call that queues a locked round until the test lets it go on.</summary>
+    private sealed class PausingSink : IRoundRecordSink
+    {
+        private readonly List<RoundPersistenceWork> _work = [];
+
+        public ManualResetEventSlim InsideLockedEnqueue { get; } = new();
+        public ManualResetEventSlim Continue { get; } = new();
+        public ManualResetEventSlim EndedEnqueued { get; } = new();
+
+        public IReadOnlyList<RoundPersistenceWork> Work
+        {
+            get
+            {
+                lock (_work)
+                {
+                    return _work.ToArray();
+                }
+            }
+        }
+
+        public void Enqueue(RoundPersistenceWork work)
+        {
+            if (work is LockedRoundWork)
+            {
+                InsideLockedEnqueue.Set();
+                Continue.Wait(TimeSpan.FromSeconds(10));
+            }
+
+            lock (_work)
+            {
+                _work.Add(work);
+            }
+
+            if (work is EndedRoundWork)
+            {
+                EndedEnqueued.Set();
+            }
+        }
+    }
+
+    [Fact]
+    public async Task A_reset_cannot_queue_the_rounds_end_while_its_insert_is_still_being_queued()
+    {
+        // The interleaving _changeGate exists for, forced: one thread locks the round and is stopped half-way through
+        // queueing the insert, then another resets the round. If changing the round and queueing its records were not
+        // one step, the reset would queue the "ended" record first and the worker would update a row that isn't there
+        // yet. The racing test below can't hit this window by chance (it survived that mutation); this one always does.
+        var sink = new PausingSink();
+        var service = new RoundService(
+            _time, Options.Create(new RoundSettings { GraceWindow = Grace }), _roster, _broadcaster, sink, NullLogger<RoundService>.Instance);
+        UseRoster(teams: 1);
+        await service.BeginAsync(EventId);
+
+        // Real threads, not tasks: the test needs to see that the second one is parked on the gate.
+        var locking = new Thread(() => service.BuzzAsync(11).GetAwaiter().GetResult());   // one team: this buzz locks the round
+        locking.Start();
+        Assert.True(sink.InsideLockedEnqueue.Wait(TimeSpan.FromSeconds(10)));
+
+        var resetting = new Thread(() => service.ResetAsync().GetAwaiter().GetResult());
+        resetting.Start();
+
+        // Wait until the reset has either got through (the bug) or is parked waiting for the gate (correct). No fixed
+        // sleep: the loop ends on whichever happens, and the deadline only bounds a broken test.
+        var deadline = DateTime.UtcNow.AddSeconds(10);
+        while (!sink.EndedEnqueued.IsSet && (resetting.ThreadState & ThreadState.WaitSleepJoin) == 0 && DateTime.UtcNow < deadline)
+        {
+            Thread.Yield();
+        }
+
+        var endedJumpedTheQueue = sink.EndedEnqueued.IsSet;
+        sink.Continue.Set();
+        Assert.True(locking.Join(TimeSpan.FromSeconds(10)));
+        Assert.True(resetting.Join(TimeSpan.FromSeconds(10)));
+
+        Assert.False(endedJumpedTheQueue);
+        Assert.Equal([typeof(LockedRoundWork), typeof(EndedRoundWork)], sink.Work.Select(w => w.GetType()));
+    }
+
     [Theory]
     [InlineData(2, 10)]
     [InlineData(6, 7)]

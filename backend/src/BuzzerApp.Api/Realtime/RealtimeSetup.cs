@@ -13,6 +13,7 @@ public static class RealtimeSetup
         services.AddSingleton<IRosterSource, DbRosterSource>();
         services.AddSingleton<IRoundBroadcaster, HubRoundBroadcaster>();
         services.AddSingleton<RoundPersistenceQueue>();
+        services.AddSingleton<IRoundRecordSink>(sp => sp.GetRequiredService<RoundPersistenceQueue>());
         services.AddSingleton<RoundService>();
         services.AddSingleton<IRoundTicker>(sp => sp.GetRequiredService<RoundService>());
         services.AddHostedService<RoundPersistenceWorker>();
