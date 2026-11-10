@@ -19,6 +19,10 @@ public sealed class ProductionModeTests(ApiFactory factory) : IDisposable
 
     private WebApplicationFactory<Program> Production(Action<IWebHostBuilder>? configure = null)
     {
+        // The shared host starts lazily and is what migrates the shared database (it runs as Development). Start it
+        // first, or this test would depend on some other test having run before it.
+        _ = factory.Services;
+
         var host = factory.WithWebHostBuilder(b =>
         {
             b.UseEnvironment("Production");
