@@ -2,7 +2,7 @@
 
 > **Audience:** AI workers implementing one step each in a fresh session, and the developer who starts and reviews them.
 > Adds implementation detail to `docs/PlanMVP.md` §10 Milestone F. **PlanMVP wins on product decisions; this file wins on frontend implementation detail.**
-> Written 10 Nov 2026. **F0 and F1 are done: start at F2.**
+> Written 10 Nov 2026. **F0, F1 and F2 are done: start at F3.**
 >
 > The backend is finished and is not changed by these steps. If a step seems to need a backend change, stop and ask the developer.
 
@@ -10,7 +10,7 @@
 |---|---|---|---|
 | F0 | `frontend-f0` — **DONE** | **Opus 5.5** | Packages, tooling, folders, composition root, MVVM base, theme contract + `default` pack + `/dev/theme`, guard tests, CI. Sets the patterns every later step copies |
 | F1 | `frontend-f1` — **DONE** | Sonnet 5.5 | `arcade-2026` theme pack, spare team colours, `docs/ThemePacks.md` (how to add next year's pack) |
-| F2 | `frontend-f2` | Sonnet 5.5 | API client, wire types, one API class per feature, stores, MSW handlers, test factories |
+| F2 | `frontend-f2` — **DONE** | Sonnet 5.5 | API client, wire types, one API class per feature, stores, MSW handlers, test factories |
 | F3 | `frontend-f3` | Sonnet 5.5 | `/join` (new player / sign in), route guards, layout shell + navigation |
 | F4 | `frontend-f4` | **Opus 5.5** | SignalR connection, round store, server clock, session and connection lifecycle, buzzer state rule |
 | F5 | `frontend-f5` | Sonnet 5.5 | `/play`: buzzer and team queue |
@@ -354,7 +354,36 @@ Teams and players change every year: 2026 has six teams; another year may have t
 
 ---
 
-## F2 — API layer and stores
+## F2 — API layer and stores — DONE
+
+> **Done 10 Nov 2026. Kept for reference; do not redo.**
+>
+> **What exists** (`frontend/src/`)
+> - Package: dev `msw` 3.0.4. **MSW 3 renamed the option:** `server.listen({ onUnhandledFrame: 'error' })`, not `onUnhandledRequest`.
+> - `api/`: `types.ts` (every REST type and request body of Appendix A; the hub's snapshot types are left to F4's `realtime/types.ts`), `ApiError.ts` (`ApiError extends Error`; `fromResponse`, `network()`, `unreadable()`), `ApiClient.ts` (`get / post / patch / delete / download`, options `{ anonymous, query }`; the only `fetch`), and per feature an interface plus its `Http…` class: `EventApi`, `SessionApi`, `TeamsApi`, `PlayersApi`, `ScoresApi`, `ArchiveApi`.
+> - `realtime/GameEvents.ts`: the `GameEvents` interface, `Unsubscribe`, and `NoGameEvents` (nothing ever fires).
+> - `stores/`: `EventStore`, `SessionStore`, `ScoresStore`, `TeamsStore`, each with tests. `AppServices` now has `themes`, `event`, `session`, `teams`, `scores`, `eventApi`, `archive`. `createAppServices({ fetchFunction?, events? })` is the composition root; F4 passes the real connection as `events`.
+> - `app/`: `AppViewModel` (+ test) activates the event load and `session.restore()`; `App.tsx` shows `ThemeSplash` (now exported from `ThemeRoot.tsx`) until the event load has finished, then `ThemeRoot` with the event's `themeKey` (the default pack when the event can't be loaded).
+> - `mvvm/Loadable`: two additions, both tested: `reloadIfRequested()` (reload unless still idle: what a hub notification uses) and `reset()` (back to idle, and a load still running is dropped).
+> - `test/`: MSW (`msw/server.ts`, `msw/handlers.ts` with a default handler for every route and `problemResponse()`; started in `setup.ts`), factories (`makeEventInfo`, `makeJoinTeams`, `makeMe`, `makeAdminMe`, `makePlayer(s)`, `makeTeamScores`, `makePlayerScores`, `makeAdjustments`, `makeFinalizeResponse`, `problem`), `fakes/` (`FakeEventApi`, `FakeSessionApi`, `FakeTeamsApi`, `FakePlayersApi`, `FakeScoresApi`, `FakeArchiveApi`, `FakeGameEvents`; each API fake has `calls`, `clearCalls()`, `failNext(error)` through a shared `CallRecorder`), and `createTestFakes()` + `createTestServices(overrides, fakes)`, which builds the **real stores over the fakes**.
+>
+> **Deviations and decisions**
+> - **Stores forget on a change of person.** `TeamsStore` and `ScoresStore` reset their `Loadable`s when `session.me?.playerId` changes (sign-out, expiry, another person). Otherwise the next person on a shared phone would see the last person's cached lists, which can hold their real name. Not in the brief; the brief's `Loadable` had no `reset`.
+> - **A store write reloads what is on screen, across stores.** `TeamsStore` takes `ScoresStore` and `SessionStore` too: a rename, move or create reloads the teams, the scores already loaded (their names change) and, when the write changed the caller, `session.refresh()`. "Already loaded" means any `Loadable` that isn't idle (`reloadIfRequested`), including one whose last load failed.
+> - **`TeamsChanged` and a reconnect also refresh the session** (inside `TeamsStore`): the caller may have been moved to another team or made an admin. F4's rule 6 (`session.refresh()` after a reconnect) therefore happens already for the teams path; F4 may keep its own call (a duplicate `/me` is harmless) or drop it.
+> - **`SessionStore.restore()` never rejects.** A `401` means anonymous; any other failure (server down) leaves `status: 'unknown'` and sets `error`, so a guard can offer "try again" rather than send a signed-in person to `/join`. `refresh()` also never rejects (a failure keeps the known `me`; a `401` signs out). A `/me` answer is applied only if nothing newer happened since it was asked (a slow `restore()` can't undo a sign-in; the later of two refreshes wins).
+> - **`GET /api/session/me` is marked anonymous** in the client, so a `401` there is read by `SessionStore` instead of also firing `onSessionExpired`. Register, sign-in, event info and join teams are anonymous too.
+> - **`signOut()`** treats a `401` as success (the session had already ended) and rethrows any other failure, leaving the person signed in.
+> - **`ArchiveApi.exportArchive(eventId)`** (the brief says one method per route) returns the file as a `Blob` through `ApiClient.download`. F8's brief says Export is a plain link, so that this file never sits in memory or storage: use the link there and delete this method if it stays unused.
+> - **Unclassified errors.** `ApiError.kind` for 405, 415 and 5xx is `'server'`; the brief's list has no other fit. A 2xx whose body isn't JSON also becomes kind `server`.
+> - **`ScoresStore.ensureAdminDataLoaded()`** loads the admin-only lists only if `session.isAdmin`, so a player's screen can never trigger a `403`. The admin lists are public `Loadable`s (`scores.playerScores`, `scores.recentAdjustments`), next to `scores.teamScores`; likewise `teams.teams`.
+> - jsdom works with MSW unchanged: relative URLs in handlers and in `fetch` resolve against jsdom's location.
+> - **Checked:** lint, build, tests (330). **Not checked:** the brief's "Check" (the app switching to the event's theme against the real backend, and starting with the backend stopped). The tests cover both paths with fakes and MSW (`App.test.tsx`, `AppViewModel.test.ts`, `AppServices.test.ts`); the real-backend look is the developer's.
+>
+> **Later steps must know**
+> - **F3:** `services.eventApi.getJoinTeams(code)` is the join screen's team list (no store: it depends on the code). `session.register` / `signIn` throw `ApiError` (`kind`, `fieldErrors` by request field name, `message` = the server's text, `retryAfterSeconds`). `App` already calls `restore()`; guards should treat `status === 'unknown'` as "splash, or a retry when `session.error` is set". `ThemeSplash` is exported from `@/theme/ThemeRoot`.
+> - **F4:** implement `GameEvents` in `GameConnection` and pass it as `createAppServices({ events })` (`main.tsx`). The stores already reload what is loaded on `onTeamsChanged`, `onScoresChanged` and `onReconnected`.
+> - **F6, F7:** use the store methods named in the brief: `teams.createTeam / renameTeam / deleteTeam / editNames / editOwnNames / movePlayer / promote`, `scores.adjust / reverse`. All throw `ApiError`, reload by themselves, and return the server's row.
 
 **Model:** Sonnet 5.5. **Read also:** Appendix A (all of it).
 
@@ -405,6 +434,8 @@ Teams and players change every year: 2026 has six teams; another year may have t
 
 **From F0:** routes are built in `app/routes.ts` (`createAppRoutes()`, `createAppRouter()`); `/` is a placeholder `features/home/HomePage.tsx` to replace with the redirect (delete it). `/dev/theme` must stay outside the guards. Name-length limits are in `@/domain/names` (`PERSON_NAME_MIN_LENGTH` …): validate against those.
 
+**From F2:** the join screen's team list comes from `services.eventApi.getJoinTeams(code)` (no store). `session.register` / `signIn` throw `ApiError` (`kind`, `fieldErrors`, `retryAfterSeconds`; `message` is the server's text). `App` already calls `session.restore()`; while `session.status` is `unknown` show `ThemeSplash` (`@/theme/ThemeRoot`), or a "try again" when `session.error` is set (the server could not be reached, which is not the same as signed out). Stores forget their data when the signed-in person changes, so sign-out needs nothing extra.
+
 **Goal:** a person can register or sign in on a phone and lands on the right start page; every route is guarded; the layout and navigation exist for the screens that follow.
 
 **Do**
@@ -452,6 +483,8 @@ Teams and players change every year: 2026 has six teams; another year may have t
 **Model:** Opus 5.5. **Read also:** PlanMVP D5–D8, D13; Appendix A "Hub".
 
 **From F0:** `BuzzerVisualState` and the runtime list `buzzerVisualStates` are in `@/domain/buzzer`; put `getBuzzerState` next to them. To test StrictMode's activate → dispose → activate, use `renderHook(..., { reactStrictMode: true })` as `app/useViewModel.test.tsx` does: a `<StrictMode>` inside the wrapper did not replay effects.
+
+**From F2:** `GameConnection` implements `realtime/GameEvents.ts` and is passed as `createAppServices({ events })` in `main.tsx` (today a `NoGameEvents`). `TeamsStore` already refreshes the session on `TeamsChanged` and on a reconnect, and every store reloads what is loaded, so rule 6's `session.refresh()` is a harmless duplicate for the teams path. Test fakes: `FakeGameEvents` (`emitTeamsChanged()` …) and `createTestServices(overrides, fakes)`.
 
 **Goal:** one SignalR connection per signed-in app, a round store every screen can read, and the pure rule that turns a snapshot into the buzzer's state. Bugs here show up as "my phone froze on event day", so the lifecycle rules below are the step.
 
@@ -616,6 +649,8 @@ Teams and players change every year: 2026 has six teams; another year may have t
 ## F8 — Host and event admin
 
 **Model:** Sonnet 5.5. **Read also:** PlanMVP D10–D12, D29; Appendix A "Hub" and "Archive".
+
+**From F2:** `services.archive` is the `ArchiveApi` (no store). `finalize()` returns the event id the export link needs. F2 also added `exportArchive(eventId)`, which holds the file in memory as a `Blob`: not wanted here (see the last Watch-out). Use the plain link and delete that method and `ApiClient.download` if nothing else uses them.
 
 **Goal:** the host runs a whole round from a phone, and can finalize and export the event.
 
@@ -838,3 +873,6 @@ End-to-end tests are a later addition (PlanMVP §11). Each step appends the scen
 | F0 | A dialog and a menu opened on `/dev/theme` use the selected pack's look | Portals render outside the page tree; only a browser shows that the CSS variables reach them |
 | F1 | Visual snapshots of `/dev/theme` per registered pack, at 360 px and desktop width | The one place a screenshot catches a regression no unit test can: fonts that fail to load, wrapped or clipped text, a colour that clashes |
 | F1 | With `arcade-2026` selected, the longest buzzer label ("WAITING FOR HOST") and a 24-character team name stay inside the buzzer and the card at 360 px | Glyph widths of Press Start 2P only exist in a real rendering engine |
+| F2 | Start the app with the API stopped, then start the API: does it show the default theme at once and switch to the event's theme without a manual reload? | Today the event is loaded once at start and not retried; only a real browser and a real server restart show whether that is acceptable (F9 decides) |
+| F2 | Sign in on a phone, delete the session cookie (or restart the API with a new key), tap anything: the app returns to the join page | The cookie handling and the 401 rule (`onSessionExpired`) are tested with MSW, but only a browser proves the real cookie behaves the same |
+| F2 | Sign out, then a different person signs in on the same phone: no team list or score of the first person is visible, not even for a moment | The stores reset on a change of person (unit-tested); a browser shows there is no flash from React's own rendering |
