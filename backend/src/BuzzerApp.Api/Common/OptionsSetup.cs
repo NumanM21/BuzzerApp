@@ -1,10 +1,11 @@
-using System.Text.RegularExpressions;
+using BuzzerApp.Core.Domain;
 using BuzzerApp.Core.Rounds;
+using BuzzerApp.Core.Security;
 using BuzzerApp.Infrastructure.Seeding;
 
 namespace BuzzerApp.Api.Common;
 
-public static partial class OptionsSetup
+public static class OptionsSetup
 {
     /// <summary>
     /// Binds the config sections and validates them on startup, so a missing secret fails the app
@@ -22,7 +23,7 @@ public static partial class OptionsSetup
                     !string.IsNullOrWhiteSpace(t.Name) && !string.IsNullOrWhiteSpace(t.ColorKey) && !string.IsNullOrWhiteSpace(t.IconKey)),
                 "Event:Teams must list at least one team, each with Name, ColorKey and IconKey.")
             // Mirrors the DB unique indexes so a config typo reports here instead of as a constraint error at seed time.
-            .Validate(o => o.Teams.Select(t => t.Name.Trim().ToUpperInvariant()).Distinct().Count() == o.Teams.Count
+            .Validate(o => o.Teams.Select(t => NameNormalizer.Normalize(t.Name)).Distinct().Count() == o.Teams.Count
                     && o.Teams.Select(t => t.ColorKey.Trim()).Distinct().Count() == o.Teams.Count,
                 "Event:Teams must have unique names and unique colour keys.")
             .ValidateOnStart();
@@ -33,7 +34,8 @@ public static partial class OptionsSetup
             .Validate(admins => admins.All(a =>
                     !string.IsNullOrWhiteSpace(a.RealName) && !string.IsNullOrWhiteSpace(a.DisplayName)),
                 "Every entry in Admins needs a RealName and DisplayName.")
-            .Validate(admins => admins.All(a => FourDigits().IsMatch(a.Pin)),
+            // The same rule sign-in applies, so a configured PIN can always be typed in.
+            .Validate(admins => admins.All(a => PinFormat.IsValid(a.Pin)),
                 "Every entry in Admins needs a 4-digit Pin.")
             .ValidateOnStart();
 
@@ -45,7 +47,4 @@ public static partial class OptionsSetup
 
         return services;
     }
-
-    [GeneratedRegex(@"^\d{4}$")]
-    private static partial Regex FourDigits();
 }

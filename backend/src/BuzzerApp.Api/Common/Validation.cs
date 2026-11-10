@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using BuzzerApp.Core.Security;
 
 namespace BuzzerApp.Api.Common;
 
@@ -46,8 +47,7 @@ public sealed partial class ValidationErrors
 
     public ValidationErrors Pin(string field, string? value)
     {
-        // [0-9] and \z, not \d and $: \d matches non-ASCII digits and $ allows a trailing newline.
-        if (value is null || !FourDigits().IsMatch(value))
+        if (!PinFormat.IsValid(value))
         {
             Add(field, "The PIN must be exactly 4 digits.");
         }
@@ -89,9 +89,6 @@ public sealed partial class ValidationErrors
     }
 
     private void Add(string field, string message) => _errors[field] = [message];
-
-    [GeneratedRegex(@"^[0-9]{4}\z")]
-    private static partial Regex FourDigits();
 
     [GeneratedRegex(@"^[a-z0-9-]{1,50}\z")]
     private static partial Regex KeyPattern();
