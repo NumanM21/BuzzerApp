@@ -55,6 +55,12 @@ if (!app.Environment.IsDevelopment())
     app.UseHttpsRedirection();
 }
 
+app.UseFrontendFiles();
+
+// Explicit, and after the static files: the implicit UseRouting runs first, and a static-file middleware skips any
+// request that already has an endpoint, so a catch-all route would hide every built asset.
+app.UseRouting();
+
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseRateLimiter();
