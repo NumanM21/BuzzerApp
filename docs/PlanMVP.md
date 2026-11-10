@@ -418,27 +418,38 @@ frontend/src/features/dev/ThemePreviewPage.tsx   dev-only route /dev/theme: ever
 ```
 
 ### 9.2 Contract
-The sketch below is the starting point. F0 finalises it and updates this section; the requirements that must survive are in `docs/FrontendSteps.md` F0 (data only; a text colour for each team colour; a fallback for unknown keys; spare team keys allowed; score number format).
+Finalised in F0 (10 Nov 2026). The source of truth, with a comment on every field, is `frontend/src/theme/types.ts`; this is its shape. Every colour is opaque hex, `rgb()` or `hsl()`, so the contract test can check contrast.
 ```ts
 export interface ThemePack {
-  key: string;                              // "arcade-2026"
-  fluent: { brand: BrandVariants; mode: 'light' | 'dark'; overrides?: Partial<Theme> }; // → createDarkTheme/createLightTheme + overrides
-  app: {
-    buzzer: Record<BuzzerVisualState, { fill: string; text: string; animation?: 'pulse' | 'blink' | 'none' }>;
-    surface: { page: string; panel: string; panelBorder: string };
-    border: { width: string; style: string };  // e.g. chunky 4px for arcade
-    shadow: string;                            // e.g. hard offset "4px 4px 0 #000" (no blur)
+  key: string;                                         // "arcade-2026": the registry key and the event's ThemeKey
+  fluent: { mode: 'light' | 'dark'; brand: BrandVariants; overrides?: Partial<Theme> }; // → createDark/LightTheme + overrides
+  surfaces: { page: string; panel: string; panelBorder: string };
+  text: { body: string; muted: string };               // each ≥ 4.5:1 on page and panel
+  border: { width: string; style: 'solid' | 'dashed' | 'dotted' | 'double' };  // e.g. chunky 4px for arcade
+  shadow: string;                                      // full box-shadow, e.g. hard offset "4px 4px 0 #000" (no blur)
+  fonts: { heading: string; body: string; numeric: string };   // CSS font stacks
+  buzzer: {
+    radius: string;                                    // "50%" for round
+    states: Record<BuzzerVisualState, {
+      colors: 'team' | { fill: string; text: string }; // 'team' = the player's team fill + onFill
+      animation: 'none' | 'pulse' | 'blink';
+    }>;
   };
-  fonts: { heading: string; body: string; numeric: string };  // CSS font stacks
-  teamColors: Record<string, string>;        // colorKey → hex
-  teamIcons: Record<string, string>;         // iconKey → imported asset URL
-  effects?: { scanlines?: boolean };
-  copy?: Partial<Record<'buzz' | 'yourTurn' | 'locked' | 'out', string>>;  // flavour text, e.g. "PRESS START"
+  teams: {
+    colors: Record<string, { fill: string; onFill: string }>;  // colorKey → fill + readable text (≥ 4.5:1)
+    icons: Record<string, string>;                             // iconKey → imported asset URL
+    fallback: { color: { fill: string; onFill: string }; icon: string };  // for keys the pack doesn't know
+  };
+  numbers: { scoreDigits: number };                    // zero-pad scores to this many digits; 0 = none
+  effects?: { scanlines?: { color: string } };
+  copy?: Partial<Record<CopyKey, string>>;             // flavour text over theme/defaultCopy.ts
 }
 ```
-`BuzzerVisualState` = `ready | yourTeamUp | queued | out | waiting`, computed by the pure `getBuzzerState(snapshot, myTeamId)` in `frontend/src/domain/`; the pack decides how each looks.
+Components never read these values directly except through `appTokens` (surfaces, text, border, shadow, fonts, buzzer radius as CSS variables), `useTeamVisual`, `useCopy`, `useFormatScore` and, for the buzzer's per-state look, `useThemePack`.
 
-`teamColors` and `teamIcons` may hold **more keys than the seeded teams use**: the spare ones are what an admin picks from when creating a team (D17).
+`BuzzerVisualState` = `ready | yourTeamUp | queued | out | waiting`, computed by the pure `getBuzzerState(snapshot, myTeamId)` in `frontend/src/domain/` (F4); the pack decides how each looks.
+
+`teams.colors` and `teams.icons` may hold **more keys than the seeded teams use**: the spare ones are what an admin picks from when creating a team (D17). Keys must match the server's rule `^[a-z0-9-]{1,50}$`.
 
 ### 9.3 Pack `arcade-2026` (retro, not cyberpunk)
 - **Mood:** 80s/8-bit arcade cabinet. Flat solid colours, square corners, chunky pixel borders, **hard** drop shadows (no blur), optional faint scanlines. **No** neon glow, gradients, chrome or glitch effects.
