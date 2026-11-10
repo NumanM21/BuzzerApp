@@ -3,7 +3,7 @@
 > **Audience:** AI coding assistants (Claude Code) and the developer.
 > **Purpose:** build a working, demo-able MVP fast, on foundations that can grow over several yearly events.
 > `../OriginalFullPlan.md` (outside the repo) is the older, learning-focused plan. Keep it for reference; **this file wins where they disagree**.
-> Last updated: 10 Nov 2026 (v2.4: Milestone B finished; B9 review folded in: §2 rewritten, feature structure in §5, seeding and migrations in §7.2, `/me` in §8.2, D24 and D32, Azure checklist in R2. v2.3: Q4 resolved (dark); backend step briefs added in `docs/BackendSteps.md`; round snapshots get `Version`, `TakeEndedRecord()` added). **Status: Milestone B (backend) done — start at F0.**
+> Last updated: 10 Nov 2026 (v2.5: Milestone F planned in `docs/FrontendSteps.md`; frontend is MVVM with MobX, TanStack Query dropped (D30, D34); plain web app with no service worker (D1, R1); admins create and delete teams in the UI (D17); frontend test strategy (D32); F3/F4 swapped and F9 added in §10. The reasons are in `docs/DecisionLog.md`. v2.4: Milestone B finished; B9 review folded in: §2 rewritten, feature structure in §5, seeding and migrations in §7.2, `/me` in §8.2, D24 and D32, Azure checklist in R2. v2.3: Q4 resolved (dark); backend step briefs added in `docs/BackendSteps.md`; round snapshots get `Version`, `TakeEndedRecord()` added). **Status: Milestone B (backend) done — start at F0.**
 
 ---
 
@@ -15,10 +15,10 @@
 4. **Comments explain why, not what.** No comments on obvious lines.
 5. **Respect §3 Decisions.** If you think one is wrong, say so and propose an alternative. Never silently deviate.
 6. **Open questions (§4).** If a step depends on an unresolved one, ask the developer **one question at a time** before writing code.
-7. **Verify before saying done.** Backend: `dotnet build BuzzerApp.slnx` and the **whole** `dotnet test BuzzerApp.slnx` pass (about 30 s; add `--logger "console;verbosity=normal" --blame-hang-timeout 2m --blame-hang-dump-type none` so a hang is named, never run a filter and call it done). Frontend (`frontend/`): `npm run lint`, `npm run build` and (once tests exist) `npx vitest run` pass.
+7. **Verify before saying done.** Backend: `dotnet build BuzzerApp.slnx` and the **whole** `dotnet test BuzzerApp.slnx` pass (about 30 s; add `--logger "console;verbosity=normal" --blame-hang-timeout 2m --blame-hang-dump-type none` so a hang is named, never run a filter and call it done). Frontend (`frontend/`): `npm run lint`, `npm run build` and `npm test` pass (the test script exists from F0).
 8. **Git.** Feature branch per step (in practice `backend-b<n>` for Milestone B; use `frontend-f<n>` for Milestone F). Small commits, one logical change each. Never commit to `main`. Never commit secrets or real people's data (archive exports contain real names).
 9. **Don't over-engineer.** ~40 users, one active event at a time, single server. But keep the boundaries in §5 so features can be added later without rewrites.
-10. **Theme rule.** No hard-coded colours, fonts, radii or shadows outside `frontend/src/theme/packs/`. Components use Fluent `tokens` or the app's `--app-*` CSS variables (§9).
+10. **Theme rule.** No hard-coded colours, fonts, radii or shadows outside `frontend/src/theme/packs/`. Components use Fluent `tokens` or the app's typed `appTokens` (§9).
 11. **Package versions.** Don't guess. Use the latest stable version compatible with .NET 10 / React 19 and confirm it restores/installs.
 12. **Dev environment.** Windows. Visual Studio (backend), VS Code (frontend). Claude Code runs in a terminal (PowerShell or Git Bash) or the VS Code extension. Keep anything committed cross-platform: use `dotnet` / `npm` scripts, not bash-only or PowerShell-only scripts. CI runs on Linux, so mind path case sensitivity.
 
@@ -31,7 +31,7 @@ A **browser-based live buzzer and scoreboard** for a yearly family games night. 
 **MVP features**
 1. **Buzz.** Host presses **Begin**. Players tap the buzzer. The server records arrival order and **locks** shortly after the first buzz. Players see the **team** order. The host sees team order **and** every individual buzz. Wrong answer → host presses **Next team**; the turn passes cleanly. **Reset** clears the round.
 2. **Scoreboard.** Everyone sees the team leaderboard. Admins also see individual scores, sortable by team or score, and add/remove points for teams and players. **Team and player scores are separate** (player points do not count towards the team).
-3. **Teams screen** (shared by players and admins): six team cards with the team colour as the border, the team icon top-left, the team name and its members. Players can edit their own names; admins can rename teams and move/edit players.
+3. **Teams screen** (shared by players and admins): one card per team (six in 2026; the number changes each year) with the team colour as the border, the team icon top-left, the team name and its members. Players can edit their own names; admins can rename, create and delete teams and move/edit players.
 4. **Event archive (minimal):** admin can **finalize** the event into a frozen snapshot and **export** it as JSON, so this year's results survive after event-day hosting is deleted. A browsable "past years" screen is optional (§11, O6).
 
 ### Roles
@@ -56,7 +56,10 @@ BuzzerApp/                              ← repo root (GitHub, public)
 │  ├─ <team>-face.png ×6                ← 1512×1200 pixel-art faces on a solid team-colour background (no transparency)
 │  ├─ all-team-faces.png                ← all six faces together
 │  └─ group-participating-teams.png     ← design reference: six team cards with names
-├─ docs/PlanMVP.md, docs/BackendSteps.md
+├─ docs/PlanMVP.md                      ← this file: product, decisions, contract
+├─ docs/BackendSteps.md                 ← what B0–B9 built (history; frontend sessions don't read it)
+├─ docs/FrontendSteps.md                ← briefs for F0–F9, shared frontend rules, API quick reference
+├─ docs/DecisionLog.md                  ← dated history of plan changes and why (for the developer)
 ├─ backend/
 │  ├─ src/BuzzerApp.Core/               ← Domain/, Rounds/, Scoring/, Archive/, Security/; no package references
 │  ├─ src/BuzzerApp.Infrastructure/     ← Persistence/ (DbContext, Configurations, Migrations, DbErrors), Seeding/, Security/
@@ -85,7 +88,7 @@ GitHub rules (set by developer): PRs required into `main`, 1 approval, rebase me
 
 | # | Topic | Decision | Why |
 |---|---|---|---|
-| D1 | Platform | Web app in the phone browser (PWA later). No app stores for MVP | Free, one codebase, iOS + Android |
+| D1 | Platform | **Plain web app** in the phone browser, served by the API (Azure for the event week). No app stores and **no service worker**. A web manifest (home-screen name and icon) and Screen Wake Lock are added in R1 | Free, one codebase, iOS + Android. Changed 10 Nov 2026 from "PWA later": a service worker's cached app is the classic way to have phones on an old build on event day, and nothing here needs offline use. Install/offline is now optional (§11, O9) |
 | D2 | Backend projects | **Core** (domain + game rules, no framework refs) ← **Infrastructure** (EF Core, DbContext, migrations, seeding) ← **Api** (endpoints, SignalR, auth, hosting). Api references both; Infrastructure references Core; Core references nothing | Clean separation; persistence can change without touching rules or endpoints |
 | D3 | Entity location | **POCO entities in `Core/Domain`** (no EF attributes). EF mapping (Fluent API `IEntityTypeConfiguration<T>`) in Infrastructure | Future domain rules (shop stock, MVP weighting) need the entities without Core depending on Infrastructure |
 | D4 | API style | **REST** for data; **SignalR** for the live round and "something changed" notifications | §6 |
@@ -101,7 +104,7 @@ GitHub rules (set by developer): PRs required into `main`, 1 approval, rebase me
 | D14 | Concurrency | Single server instance; round state guarded by one `lock`; persistent data in the DB | Simplest correct design |
 | D15 | Events | Data is scoped to an **`Event`** (one per year). One **active** event. MVP seeds it from config | Yearly reuse without mixing data |
 | D16 | Teams 2026 | **Six fixed teams**, seeded from config: Rage Quitters (red), Pay To Win (yellow), Cheat Codes (green), Smurfs (blue), AFK Allstars (purple), RNG Lovers (pink). Each has `ColorKey` + `IconKey` | Set by the event design (`images/team-logos/`) |
-| D17 | Team editing | Admins: rename, create, delete (delete blocked with `409` if the team has players **or** score rows). Team colour/icon are **not editable in the MVP** (seeded) | Design is fixed for 2026; accidental deletes prevented |
+| D17 | Team editing | Admins: rename, create, delete, **all in the Teams screen** (delete blocked with `409` if the team has players, score rows or buzz history). Teams known in advance are still pre-created from config (§7.2). A new team's colour and icon are **picked from the active theme pack's keys** (a colour no other team uses); they can't be changed afterwards in the MVP (O7) | Accidental deletes prevented; a last-minute extra team doesn't need a redeploy. Clarified 10 Nov 2026: create/delete are part of the MVP UI, not only the API, so packs carry a few spare colours and a generic icon (D31) |
 | D18 | Sign-in | **Register:** join code + real name + display name + 4-digit PIN + team. **Sign in:** join code + **real name** + PIN. Real and display names unique per event, case-insensitive | Real names are stable and memorable; display names can change freely |
 | D19 | Name visibility | **Display name** shown everywhere. **Real name** visible to admins only (and to the player themselves) | So hosts know who is who |
 | D20 | Name editing | Players edit their own display/real name; admins edit anyone's. Changes apply to the round from the next Begin | §8 |
@@ -114,10 +117,11 @@ GitHub rules (set by developer): PRs required into `main`, 1 approval, rebase me
 | D27 | Database | **PostgreSQL** via EF Core (Npgsql). Local: Docker Compose. Connection string in **User Secrets** | Work DB; pgAdmin available |
 | D28 | Stats-ready | When a round locks, persist `Round` + `BuzzRecord`s | MVP-player tracker (O1) needs data from every event; can't be reconstructed later |
 | D29 | Archive | **Finalize** builds a frozen, versioned **JSON snapshot** (teams, members, colours/icons keys, theme key, team + player scores, ranks) stored in `EventArchive` (`jsonb`). **Export** downloads it. Live rows are also kept | Tiny (~tens of KB/year), portable, renders with the normal UI components, immune to future schema changes. See §8.6 |
-| D30 | Frontend stack | React 19 + TS + Vite, **Fluent UI v9** (`@fluentui/react-components`, `@fluentui/react-icons`), `react-router`, **TanStack Query**, `@microsoft/signalr`, Vitest | Developer's work stack; Query handles loading/caching/refetch |
-| D31 | Theming | **Theme packs**: all visual identity (Fluent theme, app tokens, fonts, team colours, team icons, effects) lives in `frontend/src/theme/packs/<key>/`. The active pack is chosen by the event's `ThemeKey`. Packs are never deleted (archives reference them) | Redesign each year by adding a pack, not editing components |
-| D32 | Tests | Core: thorough xUnit (state machine, concurrency, time). **Api: integration tests for every endpoint step from B3 on** (`WebApplicationFactory` against a real PostgreSQL in a Testcontainers container; plus plain unit tests for Api helpers). Frontend: Vitest for pure logic (buzzer state, sorting). No browser end-to-end tests | Test where bugs would hurt most. Changed 10 Nov 2026: the original "Api tests only if time allows" left auth, validation and the unique-index races untested; running them against real Postgres is the only way to see those behave. **Refined in B9:** a rule that needs no database is a pure function with a unit test (Core, or a `*Rules` / service helper in Api); integration tests are kept for what only PostgreSQL or the HTTP pipeline can show, with one or two shapes each. The whole run takes about 30 s and every step runs all of it |
-| D33 | CI | **GitHub Actions** on every PR: backend build + tests; frontend lint + build (+ Vitest). Required status check in the `main` ruleset | Approval alone doesn't prove it builds |
+| D30 | Frontend stack | React 19 + TS + Vite, **Fluent UI v9** (`@fluentui/react-components`, `@fluentui/react-icons`), `react-router`, **MobX** (`mobx`, `mobx-react-lite`), `@microsoft/signalr`, Vitest | Developer's work stack. Changed 10 Nov 2026: **MobX replaces TanStack Query.** The view models are MobX classes (D34) and Query is hook-based, so it can't be used from a class; keeping both would mean two state systems. Small MobX store classes do the loading and reloading for the app's ~20 routes |
+| D31 | Theming | **Theme packs**: all visual identity (Fluent theme, app tokens, fonts, team colours, team icons, effects) lives in `frontend/src/theme/packs/<key>/`. A pack is **data only** (one typed object, no components). The active pack is chosen by the event's `ThemeKey`. Packs are never deleted (archives reference them). A contract test runs over every registered pack, and `docs/ThemePacks.md` (written in F1) explains how to add one | Redesign each year by adding a pack, not editing components. Data-only packs can be produced by handing a design to an AI and are checked by `npm test` |
+| D32 | Tests | Core: thorough xUnit (state machine, concurrency, time). **Api: integration tests for every endpoint step from B3 on** (`WebApplicationFactory` against a real PostgreSQL in a Testcontainers container; plus plain unit tests for Api helpers). **Frontend (changed 10 Nov 2026):** Vitest unit tests for domain functions, view models and stores (plain classes with fakes, no React); a few integration tests per feature (React Testing Library + MSW) for the wire format and one or two page flows; no test hard-codes the 2026 teams. Playwright end-to-end tests are **not in the MVP** (§11, O10); each frontend step records candidates in `docs/FrontendSteps.md` Appendix B | Test where bugs would hurt most. Changed 10 Nov 2026: the original "Api tests only if time allows" left auth, validation and the unique-index races untested; running them against real Postgres is the only way to see those behave. **Refined in B9:** a rule that needs no database is a pure function with a unit test (Core, or a `*Rules` / service helper in Api); integration tests are kept for what only PostgreSQL or the HTTP pipeline can show, with one or two shapes each. The whole run takes about 30 s and every step runs all of it |
+| D33 | CI | **GitHub Actions** on every PR: backend build + tests; frontend lint + build + Vitest (from F0). Required status check in the `main` ruleset | Approval alone doesn't prove it builds |
+| D34 | Frontend architecture | **MVVM with MobX.** Views (`.tsx`, `observer`, no logic) → view models (one MobX class per screen; no React, no look) → stores (MobX classes that own server data) → services (API classes and the SignalR connection, plain classes behind interfaces). Pure rules live in `domain/`. Dependencies point one way and ESLint enforces it. Detail: `docs/FrontendSteps.md` "Shared rules" | Decided 10 Nov 2026. Logic in plain classes is tested without a browser, the same way the backend's services and pure rules are; views stay thin enough to restyle or replace; it mirrors the MVVM the developer knows from C# |
 
 ---
 
@@ -135,8 +139,8 @@ GitHub rules (set by developer): PRs required into `main`, 1 approval, rebase me
 ## 5. Architecture
 
 ```
- Phones / laptop (React + TS + Vite + Fluent UI v9, theme pack per event)
-   /join  /signin  /play  /teams  /scores          /admin  /admin/scores  /admin/event
+ Phones / laptop (React + TS + Vite + Fluent UI v9 + MobX view models, theme pack per event)
+   /join  /play  /teams  /scores                   /admin  /admin/scores  /admin/event
         │ REST (JSON, cookie auth)                │ SignalR WebSocket (/hubs/game)
         │ session, event, teams, players,         │ client→server: Buzz, BeginRound, NextTeam, ResetRound
         │ scores, archive                         │ server→all:    RoundUpdated(public), TeamsChanged, ScoresChanged
@@ -191,6 +195,9 @@ The same split applies to the live round: `RoundService` keeps the rules about o
 | Ledger | Store every change as a row and compute totals, rather than overwriting a total |
 | Theme pack | A folder holding one year's look: colours, fonts, icons, Fluent theme. Components never contain colours themselves |
 | Fluent tokens | Named design values (`tokens.colorNeutralBackground1`) that Fluent components read from the active theme |
+| MVVM | Model–View–ViewModel. The **view** only draws; the **view model** is a class holding the screen's state and commands; the model is the data behind it. Same idea as WPF, here with React as the view |
+| MobX | A library that makes a class's properties *observable*: when one changes, every view that read it redraws. It plays the part `INotifyPropertyChanged` plays in C# |
+| Store | A MobX class that lives as long as the app and holds one kind of server data (teams, scores, the session, the round) |
 | Migration | A generated C# file describing a schema change; EF Core applies it to the DB |
 | User Secrets | A per-machine file outside the repo for passwords/connection strings in development |
 
@@ -391,22 +398,27 @@ Every successful write in 8.3–8.5 sends `TeamsChanged` and/or `ScoresChanged`.
 
 ## 9. Theming architecture (frontend)
 
-**Principle:** *components are structure; packs are style.* Next year's redesign = add a pack and change `Event:ThemeKey`.
+**Principle:** *components are structure; packs are style.* Next year's redesign = add a pack and change `Event:ThemeKey`. A pack is **data only** (one typed object: no components, no logic), so a new design can be handed to an AI to convert, and `npm test` checks the result against the contract. The step-by-step guide and the prompt for that are in `docs/ThemePacks.md` (written in F1).
 
 ### 9.1 Layout
 ```
 frontend/src/theme/
   types.ts            ThemePack contract (below)
-  ThemeRoot.tsx       loads the pack for the active event → <FluentProvider> + --app-* CSS variables + effects
-  useTeamVisual.ts    (colorKey, iconKey) → { color, iconUrl } with fallbacks for unknown keys
+  appTokens.ts        typed references to the app's own tokens (what components use besides Fluent `tokens`)
+  ThemeRoot.tsx       loads the pack for the active event → <FluentProvider> with Fluent + app tokens, fonts, effects
+  useTeamVisual.ts    (colorKey, iconKey) → colour, text-on-colour and icon URL, with the pack's fallback for unknown keys
   registry.ts         themeKey → lazy import of the pack (unknown key → "default")
   packs/
-    default/          neutral fallback pack (always present)
-    arcade-2026/      index.ts, icons/*.svg, fonts imported via @fontsource
-  ThemePreviewPage.tsx  dev-only route /dev/theme: every token, team card, buzzer state and Fluent control on one page
+    default/          neutral fallback pack (always present; the starting point for a new pack)
+    arcade-2026/      index.ts, icons/*.png, fonts imported via @fontsource
+  packs.contract.test.ts     runs over every registered pack: required slots, valid colours, contrast, fallbacks, icons
+  noHardcodedStyle.test.ts   fails on a colour, font, radius or shadow written outside packs/
+frontend/src/features/dev/ThemePreviewPage.tsx   dev-only route /dev/theme: every token, team card, buzzer state and
+                                                 Fluent control on one page, for any pack and any number of teams
 ```
 
 ### 9.2 Contract
+The sketch below is the starting point. F0 finalises it and updates this section; the requirements that must survive are in `docs/FrontendSteps.md` F0 (data only; a text colour for each team colour; a fallback for unknown keys; spare team keys allowed; score number format).
 ```ts
 export interface ThemePack {
   key: string;                              // "arcade-2026"
@@ -424,7 +436,9 @@ export interface ThemePack {
   copy?: Partial<Record<'buzz' | 'yourTurn' | 'locked' | 'out', string>>;  // flavour text, e.g. "PRESS START"
 }
 ```
-`BuzzerVisualState` = `ready | yourTeamUp | queued | out | waiting`, computed by the pure `getBuzzerState(snapshot, me)`; the pack decides how each looks.
+`BuzzerVisualState` = `ready | yourTeamUp | queued | out | waiting`, computed by the pure `getBuzzerState(snapshot, myTeamId)` in `frontend/src/domain/`; the pack decides how each looks.
+
+`teamColors` and `teamIcons` may hold **more keys than the seeded teams use**: the spare ones are what an admin picks from when creating a team (D17).
 
 ### 9.3 Pack `arcade-2026` (retro, not cyberpunk)
 - **Mood:** 80s/8-bit arcade cabinet. Flat solid colours, square corners, chunky pixel borders, **hard** drop shadows (no blur), optional faint scanlines. **No** neon glow, gradients, chrome or glitch effects.
@@ -443,11 +457,12 @@ export interface ThemePack {
   | purple | AFK Allstars | `#9B5DE5` |
   | pink | RNG Lovers | `#E84A8A` |
 
+- **Spare keys:** at least two more colours, clearly different from the six, and one generic icon (`default`), for teams an admin creates on the night (D17). The developer can replace them with real artwork later.
 - **Icons:** copy `images/team-logos/<iconKey>-face.png` into `packs/arcade-2026/icons/<iconKey>.png` (iconKeys: `rage-quitters`, `pay-to-win`, `cheat-codes`, `smurfs`, `afk-allstars`, `rng-lovers`) and import them in the pack so Vite fingerprints them. The source files stay in `images/` as design masters. Each icon is a **tile**: the face on a solid team-colour background (not transparent), aspect ratio 1.26:1. Show it in a fixed box with `object-fit: cover` (the face is centred, so the edge crop only removes background). The sources are high-resolution, so normal (smooth) downscaling is fine. Transparent versions are not needed for the MVP.
 - **Colour clash:** the six team colours cover almost the whole hue wheel, so red/amber/green **status** colours would be confused with teams. The buzzer therefore uses the **player's own team colour** when ready, and shows other states by **label, brightness and animation** (e.g. "YOUR TEAM'S UP!" blinking; "#2 IN LINE" dimmed; "OUT" greyed). Always text + visual, never colour alone.
 
 ### 9.4 Team card (shared component)
-Border in the team colour (pack `border.width`), icon top-left, team name, member list (display names; real names in smaller text for admins). Admin: ⋮ on the card → Rename; ⋮ per member → Edit names, Move to…, Make admin. Own row for players: ✎ → edit own names. Same component reused by the leaderboard, the archive view and (later) the display screen.
+Border in the team colour (pack `border.width`), icon top-left, team name, member list (display names; real names in smaller text for admins). Admin: ⋮ on the card → Rename, Delete; ⋮ per member → Edit names, Move to…, Make admin; an "Add team" action on the screen. Own row for players: ✎ → edit own names. Same component reused by the leaderboard, the archive view and (later) the display screen.
 
 ---
 
@@ -506,45 +521,50 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm run build
-      # - run: npx vitest run   ← uncomment in F3
+      # - run: npx vitest run   ← uncomment in F3   (now: F0 replaces this line with `npm test`)
 ```
 
 ### Milestone F — Frontend (16–29 Nov)
 
+Implementation detail per step (files, rules, traps, tests, checks, what the developer does by hand): **`docs/FrontendSteps.md`**. It also holds the shared frontend rules and a quick reference of the API as TypeScript types, so a frontend session doesn't need §8 or the C# code. One step = one branch `frontend-f<n>` = one fresh AI session = one PR.
+
+Changed 10 Nov 2026 from the first version of this table: join/sign-in now comes **before** realtime (they were F4 and F3), because the realtime step can only be checked in a browser once someone can sign in; Vitest and its CI step start in F0, not F3; F2 builds MobX stores instead of query hooks (D30); F6 includes create and delete team (D17); F9 is new.
+
 | Step | Do | Done when |
 |---|---|---|
-| **F0** Foundations | Install Fluent UI v9 (`@fluentui/react-components`, `@fluentui/react-icons`), `react-router`, `@tanstack/react-query`, `@microsoft/signalr`, Vitest. Vite dev proxy: `/api` and `/hubs` → `http://localhost:5283` (`ws: true` for `/hubs`). Folder structure below. Remove template content. Theme system §9.1–9.2 with the `default` pack and `/dev/theme` preview | App shell renders with the default pack; lint/build pass |
-| **F1** Arcade pack | Dark mode (Q4). `packs/arcade-2026` per §9.3: brand ramp, overrides, fonts, palette, icons (copied from `images/team-logos/`), effects | `/dev/theme` shows all six team cards and every buzzer state in the arcade style |
-| **F2** API layer | `src/api/client.ts` (JSON, `credentials: 'include'`, ProblemDetails → typed error), `types.ts` from §8, one hook per endpoint | Used by the join screen |
-| **F3** Realtime | `GameConnectionProvider` (one connection, `withAutomaticReconnect()`, reconnect on `visibilitychange`, StrictMode-safe), `TeamsChanged`/`ScoresChanged` → `invalidateQueries`. Pure `getBuzzerState` + Vitest tests. Enable Vitest in CI. **From B9:** call `/api/session/me` on start and after every hub reconnect (a `401` means the session ended: show the join page), and restart the hub connection when `me.role` changes (the connection keeps the role it was opened with). Drop any snapshot whose `version` is lower than the one held | Two tabs stay in sync; tests green in CI |
-| **F4** Register / Sign in | `/join?code=XXXX` with two tabs: **New player** (real name, display name, PIN, team picker showing team cards) and **Sign in** (real name, PIN). Route guards. Players → `/play`, admins → `/admin` | All error cases handled |
-| **F5** Play `/play` | Big round arcade buzzer (states per §9.3), team queue below, bottom nav: Buzz · Teams · Scores | Works at 360px wide |
-| **F6** Teams `/teams` | §9.4 for players and admins; Move to… dialog lists the other teams | Permission rules match §8.3–8.4 |
+| **F0** Foundations | Install Fluent UI v9, `react-router`, MobX, Vitest + React Testing Library. Vite dev proxy: `/api` and `/hubs` → `http://localhost:5283` (`ws: true` for `/hubs`). Folder structure below with ESLint rules for the layers (D34). MVVM helpers (`useViewModel`, `Loadable`, `Command`). Theme system §9.1–9.2 with the `default` pack, the two guard tests and the `/dev/theme` preview. Vitest in CI. Remove template content | App shell renders with the default pack; lint, build and tests pass locally and in CI |
+| **F1** Arcade pack | Dark mode (Q4). `packs/arcade-2026` per §9.3: brand ramp, overrides, fonts, palette, icons (copied from `images/team-logos/`), spare team keys, effects. `docs/ThemePacks.md`: how to add next year's pack | `/dev/theme` shows every team colour and every buzzer state in the arcade style; the contract test passes for the pack |
+| **F2** API layer + stores | `ApiClient` (JSON, same-origin cookie, ProblemDetails → `ApiError`), wire types, one API class per feature, MobX stores (`EventStore`, `SessionStore`, `TeamsStore`, `ScoresStore`), MSW handlers and test factories. The app loads the active event and uses its theme | Stores load, reload and report errors under test; the app shows the event's theme |
+| **F3** Join / sign in + shell | `/join?code=XXXX` with two tabs: **New player** (real name, display name, PIN, team picker) and **Sign in** (real name, PIN). Route guards. Layout with header and bottom navigation. Players → `/play`, admins → `/admin` | All error cases handled; works on a phone over the LAN |
+| **F4** Realtime | `GameConnection` (one SignalR connection, never gives up reconnecting, StrictMode-safe), `RoundStore`, `ServerClock`, pure `getBuzzerState`. `TeamsChanged` / `ScoresChanged` and every reconnect reload the stores. **From B9:** call `/api/session/me` on start, after every reconnect and when the tab becomes visible (a `401` means the session ended: show the join page); restart the connection when `me.role` changes (it keeps the role it was opened with). Drop any snapshot whose `version` is lower than the one held, and **forget the held version whenever the connection drops or starts** (the server's counter restarts with the server) | Two windows stay in sync and recover by themselves from an API restart |
+| **F5** Play `/play` | Big round buzzer (states per §9.3), team queue below | Works at 360px wide; two phones see the same order |
+| **F6** Teams `/teams` | §9.4 for players and admins: edit names, rename, **create and delete team**, Move to… (lists the other teams), Make admin | Permission rules match §8.3–8.4 |
 | **F7** Scores | `/scores`: team leaderboard. `/admin/scores`: team table on top, players below with **Sort by: Team / Score**; amount, multiplier (default 1), Add, Remove; recent adjustments with Undo | Updates live everywhere |
-| **F8** Host `/admin` + event panel | Begin / Next team / Reset (enabled per phase), team queue with current team + elapsed timer, full individual buzz list (`#1 Alice (Rage Quitters) +0.00s`; `#2 Bob (Rage Quitters) +0.21s · not counted`). `/admin/event`: **Finalize** and **Export** buttons | A full round runs from a phone; export downloads |
+| **F8** Host `/admin` + event panel | Begin / Next team / Reset (enabled per phase), team queue with current team + elapsed timer, full individual buzz list (`#1 Alice (Team) +0.00s`; `#2 Bob (Team) +0.21s · not counted`). `/admin/event`: **Finalize** and **Export** | A full round runs from a phone; export downloads |
+| **F9** Review + walkthrough | Re-read the whole frontend against the rules, fix what the per-step sessions missed, and walk the whole event through live in real browsers against a throwaway database (several players, two admins, an API restart mid-round, another team count, the `default` pack) | Findings reported and fixed; live walkthrough passes |
 
-**Frontend structure**
+**Frontend structure** (the layer rules are in `docs/FrontendSteps.md`)
 ```
 frontend/src/
-  api/          client.ts, types.ts, hooks/
-  realtime/     GameConnectionProvider.tsx, useGame.ts, buzzerState.ts (+ .test.ts)
+  app/          composition root (AppServices), context, routes, guards, useViewModel, App.tsx
+  api/          ApiClient.ts, ApiError.ts, types.ts, one <Feature>Api.ts per feature
+  realtime/     GameConnection.ts, types.ts
+  mvvm/         Loadable.ts, Command.ts, configureMobx.ts
+  stores/       EventStore, SessionStore, TeamsStore, ScoresStore, RoundStore, ServerClock
+  domain/       pure rules and types: buzzerState, validation, sorting, formatting, roundErrors
   theme/        §9.1
-  features/
-    join/       JoinPage.tsx
-    play/       PlayPage.tsx, Buzzer.tsx
-    teams/      TeamsPage.tsx, TeamCard.tsx, MoveToDialog.tsx, EditNamesDialog.tsx
-    scores/     LeaderboardPage.tsx, AdminScoresPage.tsx
-    host/       HostPage.tsx, ElapsedTimer.tsx
-    event/      EventAdminPage.tsx
-  components/   Layout, BottomNav, shared wrappers around Fluent controls
-  App.tsx, main.tsx, routes.tsx
+  features/     one folder per screen: <Name>Page.tsx (view) + <Name>ViewModel.ts (+ .test.ts) + dialogs
+    join/  play/  teams/  scores/  host/  event/  dev/
+  components/   shared presentational components: Buzzer, TeamCard, AppLayout, …
+  test/         setup, factories (makeTeams(n) …), fakes, renderWithApp, MSW handlers
+  main.tsx
 ```
 
 ### Milestone R — Harden, deploy, rehearse (30 Nov – 6 Dec)
 
 | Step | Do |
 |---|---|
-| R1 | PWA basics (`vite-plugin-pwa`: manifest, icons from the pack, **cache the app shell only, never `/api` or `/hubs`**, auto-update). Screen Wake Lock on `/play` and `/admin` |
+| R1 | Web-app polish, **no service worker** (D1; changed 10 Nov 2026 from "PWA basics"): a web manifest (name, icons from the pack, theme colour) so "Add to Home Screen" looks right; Screen Wake Lock on `/play` and `/admin` (re-request it when the tab becomes visible again); check that `index.html` is served so a redeploy reaches phones without a stale copy |
 | R2 | Hosting: Azure App Service **B1** for the event weekend (free F1 caps WebSockets at 5) + Azure Database for PostgreSQL Flexible Server (smallest burstable). Config/secrets via App Settings (`ConnectionStrings__BuzzerDb`, `Event__JoinCode`, `Admins__0__RealName` / `__DisplayName` / `__Pin`). **Checklist from B9 (each was checked by running the API in Production mode):** (1) `Database__MigrateOnStartup=true`, or the first start fails because no tables exist. (2) Turn on **HTTPS Only** in the App Service: TLS ends at Azure's front end, the app sees plain http and cannot redirect by itself (`UseHttpsRedirection` finds no https port and does nothing). The auth cookie is `Secure` in Production, so it only works over https. (3) `ASPNETCORE_FORWARDEDHEADERS_ENABLED=true`, so the per-IP join limit sees phones' addresses instead of Azure's proxy. (4) **Exactly one instance**, no scale-out: the live round and the sign-in throttle are in memory. (5) WebSockets on. (6) After a restart, check a phone is still signed in (Data Protection keys must persist; they do on a code-deployed App Service, not necessarily in a custom container). (7) `/healthz` is the health probe; it answers over http and https |
 | R3 | Build: `npm run build` → copy `dist` into Api `wwwroot` → `dotnet publish`. Optional GitHub Actions deploy job |
 | R4 | Rehearsal with 5+ real phones: Wi-Fi and 4G, lock/unlock mid-round, refresh, sign in on another browser, two admins, near-simultaneous buzzes, server restart mid-game |
@@ -565,6 +585,8 @@ frontend/src/
 | O7 | **Admin appearance editor** | Change team colour/icon from keys available in the active pack |
 | O8 | **Score phases** | Nullable `Category`/`PhaseId` on `ScoreAdjustment`; phases with fixed point budgets |
 | O5 | **Store apps** | Wrap the React app with Capacitor. Apple $99/yr, Google $25 once |
+| O9 | **PWA install / offline** | `vite-plugin-pwa` with a service worker. **Cache the app shell only, never `/api` or `/hubs`**, with auto-update. Left out of the MVP on purpose (D1): test thoroughly before an event if added |
+| O10 | **Playwright end-to-end tests** | Start from the backlog in `docs/FrontendSteps.md` Appendix B (multi-device sync, reconnect after a restart, a full round). Needs the API and a database in CI |
 
 **Deadline note:** MVP + O0 + one more by 18 Dec is realistic. Treat the rest as 2027 work.
 
