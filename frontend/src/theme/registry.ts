@@ -10,6 +10,7 @@ export const DEFAULT_THEME_KEY = 'default';
  */
 const loaders: Record<string, () => Promise<{ default: ThemePack }>> = {
   [DEFAULT_THEME_KEY]: () => import('./packs/default'),
+  'arcade-2026': () => import('./packs/arcade-2026'),
 };
 
 export const themeKeys: readonly string[] = Object.keys(loaders);
