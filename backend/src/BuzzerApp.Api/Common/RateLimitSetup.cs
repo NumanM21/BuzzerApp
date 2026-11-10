@@ -9,12 +9,14 @@ public static class RateLimitPolicies
 
 public static class RateLimitSetup
 {
-    // Generous on purpose (D24): the whole venue shares one public IP, and ~40 people register within minutes.
-    private const int DefaultPerIpPermitLimit = 30;
+    // Generous on purpose (D24): the whole venue shares one public IP, and ~40 people join within the same few minutes.
+    // Each phone loads the team list (again on every refocus) and then registers, so the join rush alone is well over
+    // 100 requests a minute; the original 30 would have turned people away. 300 still makes guessing a join code slow.
+    private const int DefaultPerIpPermitLimit = 300;
 
     public static IServiceCollection AddAppRateLimiting(this IServiceCollection services, IConfiguration config)
     {
-        // Configurable only so tests (which all share one IP) can raise it; production uses the default.
+        // Configurable so a deployment can tune it without a release, and so tests (which all share one IP) can change it.
         var perIpPermitLimit = config.GetValue("RateLimiting:JoinCodePerMinute", DefaultPerIpPermitLimit);
 
         services.AddRateLimiter(options =>
