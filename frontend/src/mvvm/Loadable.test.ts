@@ -166,4 +166,73 @@ describe('Loadable', () => {
     expect(fetcher).toHaveBeenCalledTimes(2);
     expect(loadable.value).toBe('up');
   });
+
+  describe('reloadIfRequested', () => {
+    it('does nothing while nobody has asked for the data', async () => {
+      const fetcher = vi.fn<() => Promise<string>>().mockResolvedValue('value');
+      const loadable = new Loadable(fetcher);
+
+      await loadable.reloadIfRequested();
+
+      expect(fetcher).not.toHaveBeenCalled();
+      expect(loadable.status).toBe('idle');
+    });
+
+    it('reloads data that was loaded', async () => {
+      const fetcher = vi.fn<() => Promise<string>>().mockResolvedValueOnce('old').mockResolvedValue('new');
+      const loadable = new Loadable(fetcher);
+      await loadable.load();
+
+      await loadable.reloadIfRequested();
+
+      expect(loadable.value).toBe('new');
+    });
+
+    it('retries data whose last load failed', async () => {
+      const fetcher = vi.fn<() => Promise<string>>().mockRejectedValueOnce(new Error('down')).mockResolvedValue('up');
+      const loadable = new Loadable(fetcher);
+      await loadable.load();
+
+      await loadable.reloadIfRequested();
+
+      expect(loadable.value).toBe('up');
+    });
+  });
+
+  describe('reset', () => {
+    it('forgets the value and the error', async () => {
+      const loadable = new Loadable(() => Promise.resolve('value'));
+      await loadable.load();
+
+      loadable.reset();
+
+      expect(loadable.status).toBe('idle');
+      expect(loadable.value).toBeUndefined();
+      expect(loadable.error).toBeUndefined();
+    });
+
+    it('drops a load that is still running, so a late answer cannot bring the data back', async () => {
+      const { loadable, calls } = controlledLoadable();
+      const load = loadable.load();
+
+      loadable.reset();
+      calls[0].resolve('late');
+      await load;
+
+      expect(loadable.status).toBe('idle');
+      expect(loadable.value).toBeUndefined();
+    });
+
+    it('loads again afterwards', async () => {
+      const fetcher = vi.fn<() => Promise<string>>().mockResolvedValue('value');
+      const loadable = new Loadable(fetcher);
+      await loadable.load();
+      loadable.reset();
+
+      await loadable.ensureLoaded();
+
+      expect(fetcher).toHaveBeenCalledTimes(2);
+      expect(loadable.value).toBe('value');
+    });
+  });
 });

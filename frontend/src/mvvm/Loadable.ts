@@ -54,6 +54,26 @@ export class Loadable<T> {
     return pending;
   }
 
+  /**
+   * Reloads only if something has asked for this data before (a screen showed it, or a load failed). A hub
+   * notification uses this: data nobody looked at needn't be fetched, but data on a screen must stay fresh.
+   */
+  reloadIfRequested(): Promise<void> {
+    return this.status === 'idle' ? Promise.resolve() : this.load();
+  }
+
+  /**
+   * Back to the state of a new Loadable. A load still running is dropped, so its late answer can't bring back
+   * data that must be gone (another person signed in on this phone).
+   */
+  reset(): void {
+    this.latestRequest += 1;
+    this.pending = undefined;
+    this.value = undefined;
+    this.error = undefined;
+    this.status = 'idle';
+  }
+
   /** Loads unless a value is already there or a load is already running; retries after an error. */
   ensureLoaded(): Promise<void> {
     if (this.status === 'ready') {
