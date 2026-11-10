@@ -43,10 +43,23 @@ export function createAppRoutes(): RouteObject[] {
   // A production build replaces `import.meta.env.DEV` with `false` and drops this branch, preview page and all.
   // It sits outside every guard: it is a developer tool and needs no session.
   if (import.meta.env.DEV) {
-    routes.push({
-      path: '/dev/theme',
-      lazy: async () => ({ Component: (await import('@/features/dev/ThemePreviewPage')).ThemePreviewPage }),
-    });
+    routes.push(
+      {
+        path: '/dev/theme',
+        lazy: async () => ({ Component: (await import('@/features/dev/ThemePreviewPage')).ThemePreviewPage }),
+      },
+      {
+        // The live connection runs only while someone is signed in, so this one needs a session. No shell: it is
+        // a debugging view, opened by address.
+        Component: SignedInGuard,
+        children: [
+          {
+            path: '/dev/realtime',
+            lazy: async () => ({ Component: (await import('@/features/dev/RealtimeDebugPage')).RealtimeDebugPage }),
+          },
+        ],
+      },
+    );
   }
 
   // Last, and matched only when nothing above does: `/` and every address the app doesn't have go to the start page.
