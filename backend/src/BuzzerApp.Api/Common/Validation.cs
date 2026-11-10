@@ -20,6 +20,30 @@ public sealed partial class ValidationErrors
     public ValidationErrors TeamName(string field, string? value, string label) =>
         Length(field, value, TeamNameMin, TeamNameMax, label);
 
+    /// <summary>For PATCH bodies: null means "leave unchanged", anything else must be a valid name.</summary>
+    public ValidationErrors OptionalPersonName(string field, string? value, string label) =>
+        value is null ? this : PersonName(field, value, label);
+
+    /// <summary>
+    /// A colour or icon key. Lower-case only, because the unique index on a team's colour compares exact strings:
+    /// accepting "Red" next to "red" would let a second team take the same colour.
+    /// </summary>
+    public ValidationErrors Key(string field, string? value, string label)
+    {
+        if (value is null || !KeyPattern().IsMatch(value.Trim()))
+        {
+            Add(field, $"{label} must be 1–50 lower-case letters, digits or hyphens.");
+        }
+
+        return this;
+    }
+
+    public ValidationErrors Error(string field, string message)
+    {
+        Add(field, message);
+        return this;
+    }
+
     public ValidationErrors Pin(string field, string? value)
     {
         // [0-9] and \z, not \d and $: \d matches non-ASCII digits and $ allows a trailing newline.
@@ -68,4 +92,7 @@ public sealed partial class ValidationErrors
 
     [GeneratedRegex(@"^[0-9]{4}\z")]
     private static partial Regex FourDigits();
+
+    [GeneratedRegex(@"^[a-z0-9-]{1,50}\z")]
+    private static partial Regex KeyPattern();
 }

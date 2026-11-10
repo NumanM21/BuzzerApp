@@ -58,6 +58,42 @@ public class ValidationErrorsTests
         Assert.Equal(expectError, new ValidationErrors().Positive("teamId", value, "A team").HasErrors);
     }
 
+    [Theory]
+    [InlineData(null, false)]            // PATCH bodies: null means "leave unchanged"
+    [InlineData("Al", false)]
+    [InlineData("", true)]               // but an empty string is a real (invalid) value
+    [InlineData("A", true)]
+    [InlineData("123456789012345678901", true)]
+    public void OptionalPersonName_skips_null_and_validates_anything_else(string? value, bool expectError)
+    {
+        Assert.Equal(expectError, new ValidationErrors().OptionalPersonName("displayName", value, "Display name").HasErrors);
+    }
+
+    [Theory]
+    [InlineData("red", false)]
+    [InlineData("rage-quitters", false)]
+    [InlineData("  red  ", false)]       // trimmed before the check, like names
+    [InlineData("team-7", false)]
+    [InlineData("Red", true)]            // the unique index is case-sensitive, so mixed case could duplicate a colour
+    [InlineData("re d", true)]
+    [InlineData("rød", true)]
+    [InlineData("", true)]
+    [InlineData(null, true)]
+    [InlineData("12345678901234567890123456789012345678901234567890", false)]    // exactly 50
+    [InlineData("123456789012345678901234567890123456789012345678901", true)]    // 51
+    public void Key_allows_1_to_50_lower_case_letters_digits_and_hyphens(string? value, bool expectError)
+    {
+        Assert.Equal(expectError, new ValidationErrors().Key("colorKey", value, "Colour").HasErrors);
+    }
+
+    [Fact]
+    public void Error_adds_a_custom_message_for_a_field()
+    {
+        var errors = new ValidationErrors().Error("displayName", "Provide something.");
+
+        Assert.True(errors.HasErrors);
+    }
+
     [Fact]
     public void Collects_every_failing_field_so_the_client_sees_them_all_at_once()
     {

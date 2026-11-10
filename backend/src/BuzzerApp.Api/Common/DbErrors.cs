@@ -20,4 +20,11 @@ public static class DbErrors
         constraintName = null;
         return false;
     }
+
+    /// <summary>
+    /// True when the save failed on a foreign key. A delete guard that checks "is anything using this?" first can still
+    /// lose a race with a request inserting a referencing row, and the Restrict FK is what stops it.
+    /// </summary>
+    public static bool IsForeignKeyViolation(this DbUpdateException ex) =>
+        ex.InnerException is PostgresException { SqlState: PostgresErrorCodes.ForeignKeyViolation };
 }
