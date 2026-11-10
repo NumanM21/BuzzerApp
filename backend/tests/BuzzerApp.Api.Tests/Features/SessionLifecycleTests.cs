@@ -78,6 +78,36 @@ public class SessionLifecycleTests(ApiFactory factory)
     }
 
     [Fact]
+    public async Task Me_for_a_player_whose_event_is_no_longer_active_is_401_and_clears_the_cookie()
+    {
+        // A phone still signed in to a rehearsal event (or last year's): the cookie is genuine and not expired.
+        var old = await factory.CreateRoundEventAsync(teamCount: 1, playersPerTeam: 1);
+        var client = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false, HandleCookies = false });
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/api/session/me");
+        request.Headers.Add("Cookie", factory.CookieFor(old.PlayersByTeam[0][0]));
+
+        var response = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.Contains(response.SetCookieHeaders(), h => h.StartsWith("buzzer.auth=;", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task Me_after_a_promotion_reissues_the_cookie_so_admin_routes_work_without_signing_in_again()
+    {
+        var admin = await factory.CreateAdminAsync();
+        var player = await factory.RegisterNewPlayerAsync();
+        (await admin.Client.PostAsync($"/api/players/{player.PlayerId}/promote", content: null)).EnsureSuccessStatusCode();
+        Assert.Equal(HttpStatusCode.Forbidden, (await player.Client.GetAsync("/api/players")).StatusCode);   // the cookie still says Player
+
+        var me = await player.Client.GetAsync("/api/session/me");
+
+        Assert.Equal("admin", (await me.ReadJsonAsync()).GetProperty("role").GetString());
+        Assert.Contains(me.SetCookieHeaders(), h => h.StartsWith("buzzer.auth=", StringComparison.Ordinal));
+        Assert.Equal(HttpStatusCode.OK, (await player.Client.GetAsync("/api/players")).StatusCode);
+    }
+
+    [Fact]
     public async Task Sign_out_is_204_clears_the_cookie_and_ends_the_session()
     {
         var player = await factory.RegisterNewPlayerAsync();

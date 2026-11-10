@@ -168,11 +168,21 @@ public static class SessionEndpoints
     {
         // From the DB, not the cookie: the cookie has no team or names, and a rename or move must show up immediately.
         var player = await db.Players.AsNoTracking().SingleOrDefaultAsync(p => p.Id == user.PlayerId, ct);
-        if (player is null)
+
+        // The cookie can outlive what it stands for: the player was removed (database wiped), or its event is no longer
+        // the active one (a rehearsal event, last year's). A cookie lasts 30 days and only sign-in checks the join code,
+        // so this is where a stale session ends: the app calls /me when it starts, gets 401 and shows the join page.
+        if (player is null || !await db.Events.AnyAsync(e => e.Id == player.EventId && e.IsActive, ct))
         {
-            // The cookie outlived the player (database wiped, player removed): drop it so the client lands on sign-in.
             await http.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
             return Results.Problem(statusCode: StatusCodes.Status401Unauthorized, title: "Your session is no longer valid.");
+        }
+
+        // The role is a claim, and a cookie can't be changed from the server, so a player promoted to admin would keep
+        // getting 403 until they signed in again. Re-issuing the cookie here fixes that on the app's next start or refetch.
+        if (user.IsAdmin != (player.Role == PlayerRole.Admin))
+        {
+            await SignInPlayerAsync(http, player);
         }
 
         return Results.Ok(await ToMeAsync(db, player, ct));
