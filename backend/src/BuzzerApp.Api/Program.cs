@@ -3,6 +3,7 @@ using System.Text.Json.Serialization;
 using BuzzerApp.Api.Common;
 using BuzzerApp.Api.Features.Event;
 using BuzzerApp.Api.Features.Players;
+using BuzzerApp.Api.Features.Scores;
 using BuzzerApp.Api.Features.Session;
 using BuzzerApp.Api.Features.Teams;
 using BuzzerApp.Api.Realtime;
@@ -67,6 +68,7 @@ app.MapEventEndpoints();
 app.MapSessionEndpoints();
 app.MapTeamEndpoints();
 app.MapPlayerEndpoints();
+app.MapScoreEndpoints();
 
 app.Run();
 
