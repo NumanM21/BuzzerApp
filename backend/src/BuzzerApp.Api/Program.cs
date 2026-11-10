@@ -1,10 +1,5 @@
 using BuzzerApp.Api.Common;
-using BuzzerApp.Api.Features.Archive;
-using BuzzerApp.Api.Features.Event;
-using BuzzerApp.Api.Features.Players;
-using BuzzerApp.Api.Features.Scores;
-using BuzzerApp.Api.Features.Session;
-using BuzzerApp.Api.Features.Teams;
+using BuzzerApp.Api.Features;
 using BuzzerApp.Api.Realtime;
 using BuzzerApp.Infrastructure;
 using BuzzerApp.Infrastructure.Seeding;
@@ -25,8 +20,7 @@ builder.Services.AddAppOptions(builder.Configuration);
 builder.Services.AddInfrastructure(connectionString);
 builder.Services.AddAppAuth(builder.Environment);
 builder.Services.AddAppRateLimiting(builder.Configuration);
-builder.Services.AddSingleton<SignInThrottle>();
-builder.Services.AddSingleton<PinDecoy>();
+builder.Services.AddFeatures();
 builder.Services.AddRealtime();
 builder.Services.AddAppHosting();
 builder.Services.AddProblemDetails();
@@ -72,12 +66,7 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi().AllowAnonymous();
 }
 
-app.MapEventEndpoints();
-app.MapSessionEndpoints();
-app.MapTeamEndpoints();
-app.MapPlayerEndpoints();
-app.MapScoreEndpoints();
-app.MapArchiveEndpoints();
+app.MapFeatures();
 app.MapRealtime();
 app.MapHostingEndpoints();
 
