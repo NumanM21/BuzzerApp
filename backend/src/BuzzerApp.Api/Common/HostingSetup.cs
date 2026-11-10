@@ -7,7 +7,13 @@ public static class HostingSetup
 {
     public const string HealthPath = "/healthz";
 
-    public static IServiceCollection AddAppHealthChecks(this IServiceCollection services)
+    private const string IndexFile = "/index.html";
+
+    // Paths the server owns. An unknown path under these is a 404, never the React app: a client would fail to parse
+    // index.html as JSON.
+    private static readonly string[] ServerPrefixes = ["/api", "/hubs"];
+
+    public static IServiceCollection AddAppHosting(this IServiceCollection services)
     {
         // A database that can't be reached is the one failure that makes the whole app useless, so that is what "healthy" means.
         services.AddHealthChecks().AddDbContextCheck<AppDbContext>();
@@ -26,32 +32,73 @@ public static class HostingSetup
     }
 
     /// <summary>
-    /// Health check, 404s for unknown API and hub paths, and the SPA fallback. Call after every real endpoint is mapped.
-    /// Endpoint routing ranks by specificity, not by order, so the catch-alls never shadow a real route such as
-    /// /api/teams or /hubs/game/negotiate; the order here is for the reader.
+    /// Decides what a request that matched no route gets: the React app for a client-side route (/join, /admin/scores,
+    /// so a refresh or a shared link works), and a 404 ProblemDetails for everything else (an unknown /api or /hubs
+    /// path, a missing file). Call right after <c>UseRouting</c> and before authorization, because the fallback policy
+    /// would otherwise tell an anonymous caller to sign in (401) for a path that doesn't exist.
+    /// <para>
+    /// A middleware rather than fallback routes (B8's first version). A catch-all endpoint takes part in route
+    /// selection: it accepts every method and content type, so a real route's "wrong method" (405), "wrong content
+    /// type" (415) and "missing body" (400) all became the catch-all's 404. Keeping the fallbacks out of the route
+    /// table leaves those answers to the real routes.
+    /// </para>
     /// </summary>
-    public static IEndpointRouteBuilder MapHostingEndpoints(this IEndpointRouteBuilder app)
+    public static WebApplication UseFallbackForUnmatchedRequests(this WebApplication app)
     {
-        // The fallback authorization policy requires a signed-in user, so each of these opts out (B3). Otherwise an
-        // anonymous probe or a first page load would get a 401.
-        app.MapHealthChecks(HealthPath).AllowAnonymous();
+        // Its own small pipeline: the static-file middleware serves index.html (with its caching headers), and if the
+        // frontend hasn't been built there is no file, so it falls through to the 404.
+        var serveIndex = ((IApplicationBuilder)app).New()
+            .UseStaticFiles()
+            .Use((RequestDelegate _) => WriteNotFoundAsync)
+            .Build();
 
-        // Without these an unknown /api/... path would fall through to the SPA and answer 200 with index.html, which a
-        // client would then fail to parse as JSON. Any method, so a mistyped POST gets the same answer as a GET.
-        app.Map("/api/{**path}", NotFoundProblem).AllowAnonymous();
-        app.Map("/hubs/{**path}", NotFoundProblem).AllowAnonymous();
-
-        // The default pattern skips paths with a file extension, so a missing /assets/x.js is a real 404 instead of HTML.
-        app.MapFallbackToFile("index.html").AllowAnonymous();
-
-        // Whatever is left (a missing /assets/x.js) matches no endpoint, and then the fallback authorization policy would
-        // answer 401 to an anonymous caller. A missing file is a 404 whoever asks, so catch it here. The pattern is spelled
-        // out because MapFallback's default also carries :nonfile and would skip exactly these paths; without the
-        // constraint it is less specific than the SPA fallback, so it only sees what that one skips.
-        app.MapFallback("{**path}", NotFoundProblem).AllowAnonymous();
+        app.Use(async (context, next) =>
+        {
+            if (context.GetEndpoint() is not null)
+            {
+                await next(context);
+            }
+            else if (IsClientRoute(context.Request))
+            {
+                context.Request.Path = IndexFile;
+                await serveIndex(context);
+            }
+            else
+            {
+                await WriteNotFoundAsync(context);
+            }
+        });
         return app;
     }
 
-    private static IResult NotFoundProblem(HttpContext context) =>
-        Results.Problem(statusCode: StatusCodes.Status404NotFound, title: "Not Found");
+    public static IEndpointRouteBuilder MapHostingEndpoints(this IEndpointRouteBuilder app)
+    {
+        // The fallback authorization policy requires a signed-in user, so this opts out (B3): a health probe is anonymous.
+        app.MapHealthChecks(HealthPath).AllowAnonymous();
+        return app;
+    }
+
+    /// <summary>
+    /// A page the React router owns: a GET for a path outside /api and /hubs whose last segment has no file extension.
+    /// A missing /assets/x.js must stay a 404, because HTML served as a script fails with a confusing syntax error.
+    /// </summary>
+    internal static bool IsClientRoute(HttpRequest request)
+    {
+        if (!HttpMethods.IsGet(request.Method) && !HttpMethods.IsHead(request.Method))
+        {
+            return false;
+        }
+
+        var path = request.Path;
+        if (ServerPrefixes.Any(prefix => path.StartsWithSegments(prefix, StringComparison.OrdinalIgnoreCase)))
+        {
+            return false;
+        }
+
+        var value = path.Value ?? "";
+        return !value[(value.LastIndexOf('/') + 1)..].Contains('.');
+    }
+
+    private static Task WriteNotFoundAsync(HttpContext context) =>
+        Results.Problem(statusCode: StatusCodes.Status404NotFound, title: "Not Found").ExecuteAsync(context);
 }
