@@ -2,7 +2,7 @@
 
 > **Audience:** AI workers implementing one step each (usually in a fresh session).
 > Adds implementation detail to `docs/PlanMVP.md` §10 Milestone B. **PlanMVP wins on product decisions; this file wins on implementation detail.**
-> Written 9 Nov 2026. **B0 and B1 are done and merged into `main`; B2 is done on branch `backend-b2`, B3 on `backend-b3-auth`, B4 on `backend-b4`, B5 on `backend-b5` and B6 on `backend-b6` (each DONE section records what was actually produced).** Start at B7.
+> Written 9 Nov 2026. **B0 and B1 are done and merged into `main`; B2 is done on branch `backend-b2`, B3 on `backend-b3-auth`, B4 on `backend-b4`, B5 on `backend-b5`, B6 on `backend-b6` and B7 on `backend-b7` (each DONE section records what was actually produced).** Start at B8.
 
 | Step | Branch | Suggested model | Why |
 |---|---|---|---|
@@ -13,7 +13,7 @@
 | B4 | `backend-b4` — **DONE** | Sonnet | CRUD |
 | B5 | `backend-b5` — **DONE** | Sonnet | CRUD + `ScoreMath` |
 | B6 | `backend-b6` — **DONE** | **Opus** (or Sonnet + Opus review) | Singleton + clock + SignalR + ordered persistence; bugs only show up under timing |
-| B7 | `backend-b7-archive` | Sonnet | Pure builder + 2 endpoints |
+| B7 | `backend-b7` — **DONE** | Sonnet | Pure builder + 2 endpoints |
 | B8 | `backend-b8-hosting` | Sonnet | Static file hosting |
 | B9 | `backend-b9-review` | **Opus or Fable** | Whole-backend re-review + end-to-end walkthrough against a throwaway "UAT" database |
 
@@ -342,7 +342,25 @@ Original brief:
 
 ---
 
-## B7 — Archive
+## B7 — Archive — DONE
+
+Kept for reference; **do not redo.** What exists now, including where it differs from the original brief:
+
+- **Core `Archive/`:** `ArchiveDocument` (+ `ArchiveEventInfo`, `ArchiveTeam`, `ArchiveMember`, `ArchivePlayer`, `ArchiveStats`; `CurrentSchemaVersion = 1`), the plain inputs `ArchiveTeamInput` / `ArchivePlayerInput` (they carry ids and an `IsAdmin` flag only so the builder can link members to teams and drop admins; ids are **not** in the document), and `ArchiveBuilder.Build(eventInfo, teams, players, stats, generatedAt)`. It sorts nothing: input order is output order, and `Ranking` keeps input order for ties. A player with no team is listed with `teamName: null`. Core still has no package references. 20 new Core tests (132 total): ranks over 1/2/6/13/30 teams, ties, negatives, a team with no members, admin exclusion, build-twice and shuffled-then-sorted give identical JSON.
+- **Api `Features/Archive/ArchiveEndpoints.cs`** (whole group is admin-only) and one line in `Program.cs`. `POST /api/archive/finalize` returns **200** `{ eventId, year, schemaVersion, finalizedAt }` (also on a re-run: it is an upsert). `GET /api/archive/{eventId}/export` returns the file `buzzer-archive-<year>.json`.
+- **Extra file `Features/Scores/ScoreTotals.cs`:** the team and player ledger-total queries (summed as `long`, clamped to `int`) moved out of `ScoreEndpoints` so the leaderboards and the archive read the ledger the same way. Behaviour of the score endpoints is unchanged.
+- **Decisions not in the brief:**
+  - Both routes use the **caller's `event_id` claim**, not "the active event", like every other route. Exporting another event's id is a 404 (same as never finalized), so an admin can't read a different event's real names. When O6 needs past years, that is the place to widen.
+  - A re-run **replaces** `Data`, `SchemaVersion`, `CreatedAt` and `CreatedByPlayerId` on the one `EventArchive` row (the row describes the latest finalize) and sets `Event.FinalizedAt`. Two admins finalizing at once: the loser's insert hits the unique index on `EventId` (23505), the change tracker is cleared and it retries once as an update, so both get 200.
+  - **Export re-serialises the stored document** (indented, declared field order) instead of returning the `jsonb` text, because `jsonb` reorders object keys. Arrays keep their order either way. The response is `Cache-Control: no-store` (real names inside).
+  - `totalBuzzes` counts the `BuzzRecord`s of this event's rounds (teammates' uncounted buzzes included); `roundsPlayed` filters `LockedAt != null`.
+- **Api tests:** `Features/ArchiveEndpointsTests.cs`, 24 test cases (theory rows included). Each builds an event of its own with `CreateRoundEventAsync` and acts as that event's admin with a minted cookie, so the document is compared with the rule applied to the data (teams over 1/2/6/13/30, a team with no members, ties, a negative total, a team with no ledger rows, a promoted admin's old ledger row). Also: replace on re-run, finalize twice gives the same document, 16 racing finalizes over 5 fresh events, stats from a real round played through `GameHost` (plus an unlocked round and another event's round that must not count), 404s (not finalized, unknown, another event's), 401 and 403. `CookieFor` moved from `GameHost` to an extension on `WebApplicationFactory<Program>` so a test can act as a player of its own event over plain REST. The 24 archive tests and the 132 Core tests pass; the build has zero warnings.
+- **Mutation-checked:** disabling the 23505 retry fails the racing test (3 of 3 runs; with only 8 callers and one event it did **not** fail, which is why the test uses 16 callers over 5 fresh events); not dropping admins fails the Core test and the endpoint theory.
+- **NOT verified:** the full `dotnet test BuzzerApp.slnx` run did **not** finish. The developer stopped it after roughly 20 minutes with no progress output (see the B8 and B9 notes). So "the whole suite is green" and the "`Event:Teams` at 3 and then 8" check were **not run** for B7; only the archive tests and the Core tests were. B7 adds files and moves one query helper out of `ScoreEndpoints`, so a regression elsewhere is unlikely, but it is unproven. B9 should run the whole suite once.
+- **Not run live:** the B7 `.http` requests were written, not executed (B9 walks them through).
+- **Deviation, branch name:** `backend-b7` (already created by the developer), not `backend-b7-archive`.
+
+Original brief:
 
 - `Core/Archive/`: the `ArchiveDocument` v1 records (PlanMVP §8.6) + a pure `ArchiveBuilder.Build(...)` that takes plain inputs (event info, teams with members and totals, players with totals, stats, `generatedAt`) and uses `Ranking`. Admins are excluded from players and members. Add Core tests for ranks, ties and the admin exclusion.
 - `Features/Archive/ArchiveEndpoints.cs`:
@@ -364,6 +382,7 @@ Original brief:
 - Add `backend/src/BuzzerApp.Api/wwwroot/` to `.gitignore` (built frontend output).
 - **From B3:** the fallback authorization policy applies to every endpoint, so `/healthz` and any SPA fallback (`MapFallbackToFile`) must be marked `AllowAnonymous()` or they return 401. Static files (`UseStaticFiles`) are not affected.
 - Note for R2 (no change now): on Azure App Service, the auth cookie is encrypted with Data Protection keys: if the keys aren't persisted (shared storage) or the app scales out, every restart/instance signs everyone out. Persist them for the event weekend. Also set `ASPNETCORE_FORWARDEDHEADERS_ENABLED=true` so the per-IP registration limit sees real client IPs, not the proxy.
+- **Do NOT run the whole Api test suite in B8.** The developer stopped B7's full `dotnet test` after about 20 minutes with no visible progress. It is far too slow, and not right, for a step that changes static files and adds a route. Run `dotnet test backend/tests/BuzzerApp.Core.Tests` (fast) and only the Api tests that cover what B8 touches: the new hosting tests, plus the `GameHubTests` filter to prove the `/hubs/game` catch-all didn't break the hub. Use `--filter` and keep each run short. Run the whole suite only if the developer asks, in the background with the output going to a file. Don't start the long run speculatively. B9 is going to fix the suite's speed.
 - **Check:** `cd frontend && npm run build`, copy `dist/*` into `Api/wwwroot`, then `dotnet run`. `/` serves the app, `/some/client/route` serves the app, `/api/nope` returns a 404 ProblemDetails, and `/healthz` reports Healthy.
 
 ---
@@ -393,6 +412,17 @@ The developer has **no dev data worth keeping**, so this step may create and des
 - Restart the API mid-round and between rounds (in-memory round lost, everything else intact). Finalize → export the archive and check `schemaVersion: 1`, totals and ranks against the database. Run the walkthrough a second time with a different team count.
 - Record every `.http` request that was **not** executed in B4/B5/B7 as now executed, and fix any that are wrong.
 
-### 3. Deliverable
+### 3. Re-review the Api tests and how the integration tests are run
+
+The developer finds the Api suite **far too slow** (B7's full run did not finish in about 20 minutes, with no progress output) and doubts it is built the right way: why isn't most of this plain unit tests, with integration tests only where they are needed? Treat it as a review item of its own, findings first, refactor second:
+
+- **Measure first.** Time each test class (a `trx` or console logger, run in the background with the output going to a file) and find where the time goes. Candidates: whether one Testcontainers PostgreSQL really is shared by every test, and migrations applied once; `GameHost.Start` creating **another host** per round test (each runs migrations and the seeder again and starts the hub, clock and worker); PIN hashing in every `RegisterNewPlayerAsync` / `CreateAdminAsync`; the throttles; `EventuallyAsync` polling and 10-second timeouts that a failing assertion waits out; tests that create 30 teams or loop over several events; and whether the single `Api` collection runs strictly serially.
+- **Decide what should be a unit test.** Validation, ranking, ordering, totals and the archive document don't need a web host or a database: pure functions in Core (as `ArchiveBuilder` and `ScoreMath` already are), handler-level tests against a fake data source, or the Api helper unit tests (`ValidationErrors`, `SignInThrottle`, `CurrentUser`). Keep integration tests (real PostgreSQL, `WebApplicationFactory`) for what needs them: the unique-index races (23505), the filtered unique index, migrations, authorization wiring (one table-driven 401/403 test over every route instead of one per class), the cookie flow, and one or two end-to-end happy paths per feature. Theories over 2/6/13/30 teams belong in Core or at unit level, not repeated through HTTP.
+- **Refactor how they are written and run.** The run must be observable (a console logger, or CI steps that report Core and Api separately). Consider a lighter host per test (one host, swap the `TimeProvider` or `RoundService` rather than starting a host per test), fewer containers or a template database, cheaper PIN hashing for tests, and trimming shapes that add no coverage. Keep the CLAUDE.md rules: `FakeTimeProvider` instead of `Thread.Sleep`, no hard-coded 2026 data, exact order assertions.
+- **Don't lose coverage by accident.** Before deleting or converting a test, note which bug it guards (the mutation checks in the DONE notes are the guide) and re-run those mutations afterwards: the 23505 catches (register, team create, rename, reverse, archive finalize), the `_changeGate` ordering, admin exclusion in the archive, the take/lock rules.
+- Record before and after run times and the new conventions in the B9 DONE note, and update the "Api tests" conventions under B3 if the helpers change.
+- Run the **whole** suite once, and with `Event:Teams` at 3 and then 8 teams, since B7 could not.
+
+### 4. Deliverable
 
 A short written report (in the PR description or the DONE note here): what was reviewed, every finding with its severity and what was done about it, what the walkthrough covered, and anything deliberately left. Mark the step done as in the shared rules (`Mark B9 done in BackendSteps`).
