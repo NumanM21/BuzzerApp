@@ -248,3 +248,59 @@ POST {{host}}/api/players/{{otherPlayerId}}/promote
 
 ### Unknown player. Expect 404
 POST {{host}}/api/players/999999/promote
+
+# ======================= B5: scores =======================
+# Sign in as the admin first (the "Sign in as the seeded admin" request above). Team ids 1-6 are the seeded teams on a
+# fresh database; @scoreTeamId / @scorePlayerId are a team and a player (role Player, not an admin) to score.
+# @adjustmentId is an id from the create or history responses below: set it before the reverse requests.
+@scoreTeamId = 1
+@scorePlayerId = 2
+@adjustmentId = 1
+
+### Team leaderboard (any signed-in user). Every team, zero totals included, highest first; tied teams share a rank (100, 100, 90 -> 1, 1, 3)
+GET {{host}}/api/scores/teams
+
+### Player leaderboard (admin). Every player-role player, zeros included, no admins; total desc then display name
+GET {{host}}/api/scores/players
+
+### Add 5 x 3 = 15 points to a team. Expect 201; the team's total in GET /api/scores/teams goes up by 15
+POST {{host}}/api/scores/adjustments
+Content-Type: application/json
+
+{ "target": "team", "targetId": {{scoreTeamId}}, "amount": 5, "multiplier": 3, "direction": "add", "reason": "Round one" }
+
+### Remove 4 points from a player (multiplier defaults to 1). Expect 201 with amount -4; the player's team total does NOT change
+POST {{host}}/api/scores/adjustments
+Content-Type: application/json
+
+{ "target": "player", "targetId": {{scorePlayerId}}, "amount": 4, "direction": "remove" }
+
+### Invalid input (amount 0, multiplier 101, no direction). Expect 400 listing amount, multiplier and direction
+POST {{host}}/api/scores/adjustments
+Content-Type: application/json
+
+{ "target": "team", "targetId": {{scoreTeamId}}, "amount": 0, "multiplier": 101 }
+
+### A team that does not exist, or an admin as the player target. Expect 400 (targetId)
+POST {{host}}/api/scores/adjustments
+Content-Type: application/json
+
+{ "target": "team", "targetId": 999999, "amount": 5, "direction": "add" }
+
+### Recent ledger rows, newest first. take is clamped to 1-100 (default 20). Reversed rows have isReversed true
+GET {{host}}/api/scores/adjustments?take=10
+
+### Undo an adjustment. Expect 201: an equal-and-opposite row with reversesAdjustmentId, and the total goes back
+POST {{host}}/api/scores/adjustments/{{adjustmentId}}/reverse
+
+### Undo the same adjustment again. Expect 409
+POST {{host}}/api/scores/adjustments/{{adjustmentId}}/reverse
+
+### Undo the undo (first set @adjustmentId to the id of the reversal row above). Expect 400
+POST {{host}}/api/scores/adjustments/{{adjustmentId}}/reverse
+
+### Unknown adjustment. Expect 404
+POST {{host}}/api/scores/adjustments/999999999/reverse
+
+### As a PLAYER (sign in as Alice again first): the team leaderboard works, everything else is 403
+GET {{host}}/api/scores/players
