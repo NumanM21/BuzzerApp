@@ -11,10 +11,10 @@
 | B2 | `backend-b2` — **DONE** | Sonnet | Standard EF Core; traps listed below |
 | B3 | `backend-b3-auth` — **DONE** | Sonnet + review | Security-sensitive |
 | B4 | `backend-b4` — **DONE** | Sonnet | CRUD |
-| B5 | `backend/b5-scores` | Sonnet | CRUD + `ScoreMath` |
-| B6 | `backend/b6-realtime` | **Opus** (or Sonnet + Opus review) | Singleton + clock + SignalR + ordered persistence; bugs only show up under timing |
-| B7 | `backend/b7-archive` | Sonnet | Pure builder + 2 endpoints |
-| B8 | `backend/b8-hosting` | Sonnet | Static file hosting |
+| B5 | `backend-b5-scores` | Sonnet | CRUD + `ScoreMath` |
+| B6 | `backend-b6-realtime` | **Opus** (or Sonnet + Opus review) | Singleton + clock + SignalR + ordered persistence; bugs only show up under timing |
+| B7 | `backend-b7-archive` | Sonnet | Pure builder + 2 endpoints |
+| B8 | `backend-b8-hosting` | Sonnet | Static file hosting |
 
 ---
 
@@ -22,7 +22,7 @@
 
 - Read `CLAUDE.md` and `docs/PlanMVP.md` first, then the brief for your step below.
 - The developer's prompt saying "do B<n>" counts as "go". Don't stop to propose a file list unless something in the brief is unclear or looks wrong. If it does, say so and propose an alternative. Never silently deviate.
-- Branching: B0 is merged, so `main` has CI and the `backend` + `frontend` checks are required by the `main` ruleset (PR, 1 approval, rebase merge only). Every step branches `backend/b<n>-<short-name>` off the latest `origin/main` (`git fetch`, then branch from `origin/main`). A step's PR can't merge until both checks are green. Make small commits, one logical change each. Don't push or open a PR unless asked.
+- Branching: B0 is merged, so `main` has CI and the `backend` + `frontend` checks are required by the `main` ruleset (PR, 1 approval, rebase merge only). Every step branches `backend-b<n>-<short-name>` off the latest `origin/main` (`git fetch`, then branch from `origin/main`). A step's PR can't merge until both checks are green. Make small commits, one logical change each. Don't push or open a PR unless asked.
 - **Done** = `dotnet build BuzzerApp.slnx` + `dotnet test BuzzerApp.slnx` pass with **zero warnings** (warnings are errors from B0 on), plus the step's own **Check**. **Every step that adds endpoints also adds integration tests in `backend/tests/BuzzerApp.Api.Tests`** (see "Api tests" in the B3 section for the factory, helpers and conventions); `dotnet test` needs Docker running. Finish with a short summary of what was built and why (a few paragraphs).
 - **Mark the step done in this file as your last commit** (no need to be asked). In the table, change the branch cell to `<branch> — **DONE**`. Add ` — DONE` to the step's section heading, add a short "Kept for reference; **do not redo.**" note listing what exists now, and record every deviation from the brief and anything later steps must know. If something you learned affects a later step, add it to that step's brief too. Update the "Start at B<n>" line at the top. Commit it as `Mark B<n> done in BackendSteps`.
 - Package versions: don't guess. Look up the latest stable version (e.g. `curl -s https://api.nuget.org/v3-flatcontainer/<lowercase-id>/index.json`; the last stable entry is the newest), add a `<PackageVersion>` to the root `Directory.Packages.props`, and reference the package in the csproj **without** a `Version` attribute (central package management is on, so a `Version` there is an error). Confirm it restores and builds.
