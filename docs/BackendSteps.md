@@ -403,7 +403,33 @@ Original brief:
 
 ---
 
-## B9 — Whole-backend review + UAT walkthrough
+## B9 — Whole-backend review + UAT walkthrough — IN PROGRESS (branch `backend-b9`, 10 Nov 2026)
+
+**Not finished.** The session that started B9 ran out of usage part-way through. What is done and committed, and what is left:
+
+**Findings that changed earlier notes (read these before trusting the B6–B8 sections above):**
+- **The Api suite was never slow.** B7's "20 minutes, no progress" was one test deadlocking: `RoundFlowTests.Racing_buzzes_ticks_and_resets_leave_every_saved_round_complete`, intermittently. `FakeTimeProvider.GetUtcNow()` fires due timers on the calling thread, `BuzzRound` reads the clock inside its lock, and `RoundClock`'s tick then ran inline and waited for `RoundService._changeGate` while holding that lock. Test-only (the system clock never runs callbacks). The whole suite takes about 35 s. **The B8 rule "do NOT run the whole Api test suite" no longer applies: run it**, with `--blame-hang-timeout 2m --blame-hang-dump-type none --logger "console;verbosity=normal"` so a hang is named instead of stalling.
+- **B8's `/api/{**path}` and `/hubs/{**path}` catch-all endpoints broke four tests** ("missing body is 400" for register, sign-in, scores, teams returned 404) and made wrong-method / wrong-content-type answers 404 too. B8 only ran filtered tests, so `main` was red.
+- **B8's R2 note is wrong:** `/healthz` over plain http is **not** redirected in Production. `UseHttpsRedirection` finds no https port behind a TLS-terminating proxy and does nothing (checked by running the API in Production mode). Turn on "HTTPS Only" on the App Service instead.
+
+**Done (each is one commit on `backend-b9`):**
+- `RoundClock` runs each tick on the thread pool (`Task.Run`) and depends on the new `IRoundTicker`; `RoundClockTests` pins it without a host (it failed before the fix).
+- The catch-all endpoints and `MapFallbackToFile` are gone. `HostingSetup.UseFallbackForUnmatchedRequests()` (a middleware right after `UseRouting`) serves `index.html` for client routes and a 404 ProblemDetails for everything else that matched no route. Real routes answer 400 / 405 / 415 themselves again. `AddAppHealthChecks` is now `AddAppHosting`.
+- `WriteNotificationTests` disposes its spied hosts. CI: per-test output, `--blame-hang-timeout 2m`, `timeout-minutes: 15` (job names unchanged).
+- **Deviation, `Core/Security/PinFormat`:** one PIN rule for registration, sign-in and `OptionsSetup` (which still had `^\d{4}$`).
+- **Deviation from PlanMVP §7.2, migrations:** `Database:MigrateOnStartup` (default: Development only, as before). Without it a first Production start crashes at the seeder. Azure sets `Database__MigrateOnStartup=true`.
+- **Deviation from D24:** the shared join-code limit default is 300 a minute per IP, not 30 (about 40 phones behind one venue IP load the team list and register in the same minutes). Still `RateLimiting:JoinCodePerMinute`.
+- **Deviation from PlanMVP §7.2, event identity:** the seeder finds the event by `Event:Year`, not by join code. The year's event follows the configured join code and is made the active one; a join code already used by another year fails at startup with a clear message. Before, changing a code created a second empty event. Tests: `Seeding/EventSeederTests` (a scratch database in the shared container, `factory.ConnectionStringFor`).
+- `GET /api/session/me` now returns 401 and clears the cookie when the player's event is no longer active, and re-issues the cookie when the role in the database differs from the claim (fixes the B3 "promoted player keeps the Player claim" limit for REST). **Limit left:** only `/me` checks this; other routes and the hub still accept an old event's cookie, because the tests rely on inactive events for isolation. **For F3:** call `/me` on start and after a hub reconnect, and reconnect the hub after a role change.
+- `Features/ProductionModeTests`: Secure cookie, no OpenAPI, the migration switch. No test ran the Production configuration before.
+- Structure, first part: `Core/Domain/DefaultOrder` (team and name orders, not yet used by the endpoints), one `TeamOutcome` enum (`RoundTeamOutcome` is gone), `DbErrors` moved to `Infrastructure/Persistence`, `Common/Result.cs` + `ResultHttp.cs` (`Result<T>` / `Error` for feature services, not yet used), `Common/AppJson`, `IGameNotifier.TeamsAndScoresChangedAsync()`. `RoundService` now takes `IRosterSource` and `IRoundBroadcaster` (`Realtime/RoundCollaborators.cs`), with `RoundServiceTests` as unit tests. `BuzzRound.GetSnapshots()` returns both snapshots under one lock: a broadcast could previously send admins a newer version than players.
+- Test counts when this was written: Core 143, Api 357, all green.
+
+**Left to do:**
+- Move the logic out of the endpoint files into per-feature services (`TeamService`, `PlayerService`, `ScoreService`, `SessionService`, `ArchiveService`) returning `Result<T>`, use `DefaultOrder` and `TeamsAndScoresChangedAsync` everywhere, and remove the duplicated helpers (`Conflict` / `NotFound`, team-name lookups, the name-clash handling shared by register and edit-names). Then trim HTTP theories whose rule has a unit test.
+- Mutation-check `_changeGate` with `RoundServiceTests.Racing_…` (move `QueueRecords()` outside the lock; it should fail). The first attempt was inconclusive.
+- Known, not fixed: a team that queues after `Round:MaxRecordedBuzzes` buzzes has no `BuzzRecord`, so its outcome is not saved (needs more than 100 buzzing players).
+- Sections 2 (UAT walkthrough), the `Event:Teams` 3 and 8 runs, and the rest of this brief. Update `PlanMVP.md` (§2 and the status line are stale, §7.2 seeding rules, D24, R2 Azure checklist: HTTPS Only, `ASPNETCORE_FORWARDEDHEADERS_ENABLED=true`, `Database__MigrateOnStartup=true`, one instance) and CLAUDE.md's test command.
 
 Run this **after B8**, in a fresh session on **Opus or Fable**, before the frontend depends on the API. Branch `backend-b9-review` off the latest `origin/main`. Nothing here is built yet. Its two jobs are to find what the per-step sessions missed and to prove the whole thing works once, live, end to end.
 
