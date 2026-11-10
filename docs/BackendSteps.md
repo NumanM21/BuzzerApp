@@ -1,4 +1,4 @@
-# Backend steps B0–B8 — implementation briefs
+# Backend steps B0–B9 — implementation briefs
 
 > **Audience:** AI workers implementing one step each (usually in a fresh session).
 > Adds implementation detail to `docs/PlanMVP.md` §10 Milestone B. **PlanMVP wins on product decisions; this file wins on implementation detail.**
@@ -15,6 +15,7 @@
 | B6 | `backend-b6-realtime` | **Opus** (or Sonnet + Opus review) | Singleton + clock + SignalR + ordered persistence; bugs only show up under timing |
 | B7 | `backend-b7-archive` | Sonnet | Pure builder + 2 endpoints |
 | B8 | `backend-b8-hosting` | Sonnet | Static file hosting |
+| B9 | `backend-b9-review` | **Opus or Fable** | Whole-backend re-review + end-to-end walkthrough against a throwaway "UAT" database |
 
 ---
 
@@ -30,6 +31,7 @@
 - Build settings (`net10.0`, nullable, implicit usings, `TreatWarningsAsErrors`) live in the root `Directory.Build.props`. Don't repeat them in csproj files.
 - Use UTC everywhere: `TimeProvider.GetUtcNow()` (inject `TimeProvider`, never `DateTime.Now`). Npgsql rejects a `DateTimeOffset` with a non-zero offset for `timestamptz` columns.
 - Comments explain *why*, not *what*.
+- **Don't start, stop or write to the developer's Docker dev database (`docker compose`, the `.http` file against `localhost:5283`) just to "run the Check".** The developer holds no data there that they want to keep, but they don't want every step to churn the container. The Api tests already run the same endpoints against a throwaway Testcontainers PostgreSQL, so a step's `.http` requests only need to be **written** (and kept accurate), not executed. Say "not run live, covered by the integration tests" in the DONE note. The live end-to-end walkthrough happens once, in B9, against a separate UAT database.
 - **Tests must not hard-code the 2026 event.** The number and names of teams, and the number of players, change every year (2026 has six teams; a later year may have fewer or more, and a different crowd). A test must pass for "several" teams, never for "exactly six".
   - Never assert a team count of `6`, a team name such as `"Rage Quitters"`, a colour such as `"red"`, or "the second seeded team". Either **create what the test needs** (`admin.CreateTeamAsync()`, `factory.NewTeamIdAsync()`, `RegisterNewPlayerAsync()`), or **read the expected value from the database** (`factory.ActiveEventTeamsAsync()`, `factory.FirstTeamAsync()`, `factory.TeamNameAsync(id)`).
   - Logic that depends on how many teams or players there are (queueing, locking when every team has buzzed, ranking, ties, totals, the archive) is tested with a `[Theory]` over several shapes, for example 2, 6, 13 and 30 teams (see `Shapes` in `BuzzRoundConcurrencyTests`), plus the edge cases that matter (one team, equal totals, a team with no players).
@@ -236,7 +238,7 @@ Kept for reference; **do not redo.** What exists now, including where it differs
   - **The shared database holds more than the seed:** the create-team tests add teams, and other tests add players, and a second event exists. Never assume a team or player count, or that a list contains only the rows you made: assert on the rows you created, or compare with the database. Never rename or delete a seeded team in a test. B5's `GET /api/scores/teams` returns those extra teams too.
   - A signed-in browser stays signed in as whoever registered/signed in last on it: registering a player on an admin's `HttpClient` replaces the admin cookie.
 - **For B5:** promoting a player doesn't touch the ledger, so an admin can still have `PlayerId` score rows from when they were a player. `GET /api/scores/players` already excludes admins (brief), and the adjustment target check already requires role `Player`; B7's player list must exclude them too.
-- **Not run live:** the new `.http` requests (B4 section at the end of the file) were not run against the dev database, to keep the developer's dev data untouched; the same cases are covered by the integration tests against a throwaway PostgreSQL.
+- **Not run live:** the new `.http` requests (B4 section at the end of the file) were not run against the dev database (B9 walks them through on a UAT database); the same cases are covered by the integration tests against a throwaway PostgreSQL.
 - **Follow-up, tests made independent of the seed:** the Api tests no longer name the 2026 teams or assume six of them (they create teams or read them from the database), and `BuzzRoundConcurrencyTests` runs over 2, 6, 13 and 30 teams (`Shapes`). Both were checked by running the Api suite with 3 and then 8 teams in `Event:Teams`. This surfaced one product fix: team lists (`GET /api/teams`, `GET /api/event/teams`) now order by `SortOrder` **then `Id`**, because `SortOrder` isn't unique (two admins creating teams at once can tie) and Postgres returned ties in an arbitrary order.
 - **Follow-up, deterministic-order review (after B4):** every list in B1–B4 was checked against the shared "Every list has a deterministic order" rule. Core is clean: `BuzzRound` only *looks up* its `Dictionary` / `HashSet` and never enumerates them into output, the queue and buzz lists are in arrival order, and `Ranking.Rank` keeps input order for ties (so its callers must pre-sort, which B5 and B7 do). Api: `GET /api/teams`, `GET /api/event/teams` (`SortOrder`, `Id`), team members and `GET /api/players` (display name ignoring case, `Id`) now all end in an `Id` tiebreaker; the only one that actually misbehaved was the team lists (`SortOrder` ties). Tests: the team lists, member order and player list order are asserted exactly, and the player list is also checked to be byte-identical on two requests.
 
@@ -269,7 +271,7 @@ Kept for reference; **do not redo.** What exists now, including where it differs
   - `take` that isn't a number is a 400 (the binder rejects it); numbers outside 1–100 are clamped.
 - **Order (verified by tests):** teams by total descending then `SortOrder`, `Id`; players by total descending, display name (ignoring case), `Id`; history `CreatedAt` descending, `Id` descending. The team and player totals are looked up from a dictionary and never enumerated into a response.
 - **Api tests:** 58 new (257 Api tests total). `ScoreEndpointsTests` is a partial class split by endpoint (`.cs` reads and create, `.Create.cs`, `.History.cs`, `.Reverse.cs`), plus two notification tests in `WriteNotificationTests`. Ranking and ordering run over 2, 6, 13 and 30 teams or players (`Counts`), with ties, negatives and teams with no rows, and look only at the ids each test created. Ranks are global (the shared database holds other tests' teams), so they are checked against the rule applied to the whole response, and the explicit tie test uses totals around 1.5 billion so no other test's team lands between them. Mutation-checked: disabling the 23505 catch in reverse makes `Concurrent_reverses_of_one_adjustment_produce_exactly_one_reversal` fail. Also run with `Event:Teams` set to 3 and then 8 teams: all green.
-- **Not run live:** the new `.http` requests (B5 section at the end of the file) were not run against the dev database, to keep the developer's dev data untouched; the integration tests cover the same cases against a throwaway PostgreSQL. Nothing in `Core` changed.
+- **Not run live:** the new `.http` requests (B5 section at the end of the file) were not run against the dev database (B9 walks them through on a UAT database); the integration tests cover the same cases against a throwaway PostgreSQL. Nothing in `Core` changed.
 - **Deviation, branch name:** `backend-b5` (already created by the developer), not `backend-b5-scores`.
 
 Original brief:
@@ -313,7 +315,7 @@ Original brief:
   - Any collection copied into a snapshot or a persistence record: it must come from an ordered source (`_queue`, the buzz list), never from a `Dictionary` / `HashSet` / `GroupBy`.
   - Places where two requests can race and change a list's order: concurrent team creation (`SortOrder` ties, already handled with `Id`), ledger rows with equal `CreatedAt` (B5), snapshots sent from several threads (`Version` is the backstop).
   - Anything else in B1–B5 that has been added since this was written. Fix what you find with a tiebreaker and an exact-order test, and record the result here in the B6 DONE note.
-- **Check:** write a throwaway console client in the session scratchpad, **not committed**. It uses `Microsoft.AspNetCore.SignalR.Client` + `HttpClient` with a `CookieContainer` for sign-in, and passes the cookies to the hub connection. Run 2 players on different teams + 1 admin through: Begin → one buzz → auto-lock after ~2 s with no further input → NextTeam → Reset. Then confirm that the admin receives individual buzzes and players don't, and that `Round` / `BuzzRecord` rows show LockedAt, EndedAt and outcomes.
+- **Check (per the shared rule on the dev database, run it against the Api test factory and its Testcontainers PostgreSQL, e.g. as integration tests with the SignalR client over the test server; the live console walkthrough against a UAT database is B9):** write a throwaway console client in the session scratchpad, **not committed**. It uses `Microsoft.AspNetCore.SignalR.Client` + `HttpClient` with a `CookieContainer` for sign-in, and passes the cookies to the hub connection. Run 2 players on different teams + 1 admin through: Begin → one buzz → auto-lock after ~2 s with no further input → NextTeam → Reset. Then confirm that the admin receives individual buzzes and players don't, and that `Round` / `BuzzRecord` rows show LockedAt, EndedAt and outcomes.
 
 ---
 
@@ -339,3 +341,34 @@ Original brief:
 - **From B3:** the fallback authorization policy applies to every endpoint, so `/healthz` and any SPA fallback (`MapFallbackToFile`) must be marked `AllowAnonymous()` or they return 401. Static files (`UseStaticFiles`) are not affected.
 - Note for R2 (no change now): on Azure App Service, the auth cookie is encrypted with Data Protection keys: if the keys aren't persisted (shared storage) or the app scales out, every restart/instance signs everyone out. Persist them for the event weekend. Also set `ASPNETCORE_FORWARDEDHEADERS_ENABLED=true` so the per-IP registration limit sees real client IPs, not the proxy.
 - **Check:** `cd frontend && npm run build`, copy `dist/*` into `Api/wwwroot`, then `dotnet run`. `/` serves the app, `/some/client/route` serves the app, `/api/nope` returns a 404 ProblemDetails, and `/healthz` reports Healthy.
+
+---
+
+## B9 — Whole-backend review + UAT walkthrough
+
+Run this **after B8**, in a fresh session on **Opus or Fable**, before the frontend depends on the API. Branch `backend-b9-review` off the latest `origin/main`. Nothing here is built yet. Its two jobs are to find what the per-step sessions missed and to prove the whole thing works once, live, end to end.
+
+### 1. Review all of B1–B8 with fresh eyes
+
+Each step was written and checked in isolation, mostly by Sonnet. Read the **whole** backend (`Core`, `Infrastructure`, `Api`, both test projects) against `docs/PlanMVP.md` (§3 decisions, §7 domain, §8 contract) and CLAUDE.md "Must never happen". Report findings first, grouped by severity, then fix what is clearly a bug in small commits, each with a test that failed before the fix. Ask before changing a PlanMVP decision. Check at least:
+
+- **Security:** every endpoint's authorization (anonymous / signed in / admin), cookie settings, no client-sent player/team ids or timestamps trusted for buzzing, no real names in non-admin responses (REST and both SignalR snapshots), no admin-only data in the public snapshot, rate limits, ProblemDetails that leak nothing.
+- **Concurrency and timing (B6):** `RoundService` locking, the persistence queue's take-and-enqueue guard, the broadcast semaphore and `Version`, the clock never dying, no `DbContext` in a singleton, `FakeTimeProvider` instead of `Thread.Sleep` in tests.
+- **Data integrity:** unique indexes and their 23505 catches, FK `Restrict` behaviour and the delete guards, the score ledger invariants (exactly one target, a row reversed at most once, totals inside `int`), the seeder never overwriting admin edits, the archive document's schema and rank rules.
+- **Deterministic order:** the shared rule, once more over every list (B6's sweep covered B1–B6; this covers B7–B8 and the final code).
+- **Tests:** anything that hard-codes the 2026 event, a test that can pass for the wrong reason, missing 401/403 cases, missing mutation checks on the race tests. Re-run the Api suite with `Event:Teams` at 3 and then 8 teams.
+- **Build hygiene:** zero warnings, package versions, `Directory.Packages.props`, CI still matches the repo (job names `backend` / `frontend`).
+
+### 2. UAT database and end-to-end walkthrough
+
+The developer has **no dev data worth keeping**, so this step may create and destroy databases freely, but it must still not touch the developer's normal `docker compose` database or User Secrets.
+
+- Start a **separate** PostgreSQL container for UAT (own container name, own volume, a free host port such as 5435; remove both when finished). Run the Api against it with environment variables or a git-ignored `appsettings.Uat.json`, never by editing committed config or User Secrets. Nothing from UAT is committed (no secrets, no exports).
+- **Seed realistic data** with a throwaway script kept in the session scratchpad (or a committed `dotnet`-only tool if the developer wants it): an event, several teams (not only 2026's six), 30–40 players spread across them, two admins, and a few ledger rows. Registration goes through the API so PIN hashing and the cookie flow are real.
+- **Walk the whole event through the real HTTP and SignalR surface** (a scratchpad console client with `HttpClient` + `CookieContainer` + `Microsoft.AspNetCore.SignalR.Client`, plus the `.http` files): register / sign in / sign out and the throttle, the Teams screen data with real names hidden from players, edit own names, admin moves / renames / promotes, score adjustments and undo (and the double-undo 409), then several rounds: Begin → near-simultaneous buzzes from many players → auto-lock after the grace window → Next team through to Exhausted → Reset, and a round that locks with every team buzzed. Confirm that admins receive individual buzzes and players don't, that a second admin sees the same state, that `ScoresChanged` / `TeamsChanged` reach clients after REST writes, and that `Round` / `BuzzRecord` rows hold the right `LockedAt`, `EndedAt`, sequence and outcomes.
+- Restart the API mid-round and between rounds (in-memory round lost, everything else intact). Finalize → export the archive and check `schemaVersion: 1`, totals and ranks against the database. Run the walkthrough a second time with a different team count.
+- Record every `.http` request that was **not** executed in B4/B5/B7 as now executed, and fix any that are wrong.
+
+### 3. Deliverable
+
+A short written report (in the PR description or the DONE note here): what was reviewed, every finding with its severity and what was done about it, what the walkthrough covered, and anything deliberately left. Mark the step done as in the shared rules (`Mark B9 done in BackendSteps`).
