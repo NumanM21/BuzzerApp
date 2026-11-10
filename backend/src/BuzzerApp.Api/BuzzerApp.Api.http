@@ -304,3 +304,24 @@ POST {{host}}/api/scores/adjustments/999999999/reverse
 
 ### As a PLAYER (sign in as Alice again first): the team leaderboard works, everything else is 403
 GET {{host}}/api/scores/players
+
+# ======================= B7: archive =======================
+# Sign in as the seeded admin first. Both routes are admin-only. @archiveEventId is the id of YOUR event (the one in your
+# cookie): 1 on a fresh database. Export of any other event id is a 404, as is an event that was never finalized.
+@archiveEventId = 1
+
+### Export before finalizing. Expect 404
+GET {{host}}/api/archive/{{archiveEventId}}/export
+
+### Finalize the event. Expect 200 { eventId, year, schemaVersion: 1, finalizedAt }. Safe to repeat: each run replaces the archive
+POST {{host}}/api/archive/finalize
+
+### Export the frozen document. Expect 200, a download named buzzer-archive-<year>.json with schemaVersion 1, teams (rank, then
+### sort order), members, players (no admins), totals and stats. Don't commit the file (it holds real names)
+GET {{host}}/api/archive/{{archiveEventId}}/export
+
+### Another event's id. Expect 404
+GET {{host}}/api/archive/999999/export
+
+### As a PLAYER (sign in as Alice first): both routes are 403. Anonymous: both are 401
+POST {{host}}/api/archive/finalize
