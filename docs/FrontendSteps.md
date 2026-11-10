@@ -2,7 +2,7 @@
 
 > **Audience:** AI workers implementing one step each in a fresh session, and the developer who starts and reviews them.
 > Adds implementation detail to `docs/PlanMVP.md` §10 Milestone F. **PlanMVP wins on product decisions; this file wins on frontend implementation detail.**
-> Written 10 Nov 2026. **F0, F1, F2 and F3 are done: start at F4.**
+> Written 10 Nov 2026. **F0–F4 are done: start at F5.**
 >
 > The backend is finished and is not changed by these steps. If a step seems to need a backend change, stop and ask the developer.
 
@@ -12,7 +12,7 @@
 | F1 | `frontend-f1` — **DONE** | Sonnet 5.5 | `arcade-2026` theme pack, spare team colours, `docs/ThemePacks.md` (how to add next year's pack) |
 | F2 | `frontend-f2` — **DONE** | Sonnet 5.5 | API client, wire types, one API class per feature, stores, MSW handlers, test factories |
 | F3 | `frontend-f3` — **DONE** | Sonnet 5.5 | `/join` (new player / sign in), route guards, layout shell + navigation |
-| F4 | `frontend-f4` | **Opus 5.5** | SignalR connection, round store, server clock, session and connection lifecycle, buzzer state rule |
+| F4 | `frontend-f4` — **DONE** | **Opus 5.5** | SignalR connection, round store, server clock, session and connection lifecycle, buzzer state rule |
 | F5 | `frontend-f5` | Sonnet 5.5 | `/play`: buzzer and team queue |
 | F6 | `frontend-f6` | Sonnet 5.5 | `/teams`: team cards, edit names, rename, move, make admin, create and delete team |
 | F7 | `frontend-f7` | Sonnet 5.5 | `/scores` leaderboard; `/admin/scores` adjustments and undo |
@@ -510,7 +510,40 @@ Teams and players change every year: 2026 has six teams; another year may have t
 
 ---
 
-## F4 — Realtime
+## F4 — Realtime — DONE
+
+> **Done 10 Nov 2026. Kept for reference; do not redo.**
+>
+> **What exists** (`frontend/src/`)
+> - Package: `@microsoft/signalr` **10.0.11**. `11.0.0` became `latest` on the day of this step; 10.x matches the .NET 10 server and the version this file confirmed.
+> - `domain/`: `round.ts` (`RoundPhase`, `TeamTurnStatus`, `TeamQueueEntry`, `RoundView`: the round's types live here because the buzzer rule needs them and domain imports nothing), `buzzerState.ts` (`getBuzzerState(round, myTeamId)` → `{ state, position?, buzzedBy? }`), `roundErrors.ts` (`describeRoundError(code)`, `clientRoundErrors`). Tested over 1, 2, 6 and 13 teams and every place in the queue.
+> - `realtime/`: `types.ts` (snapshots, `BuzzEntry`, `RoundResult`, `ConnectionState`), `GameConnection.ts` (the interface; extends `GameEvents`), `SignalRGameConnection.ts` (the real one, with `HubConnectionLike` and `createGameHub`), `retryDelays.ts` (0, 1, 2, 5 s, then every 10 s forever), `ListenerSet.ts`. `NoGameEvents` is deleted.
+> - `stores/`: `RoundStore` (`connectionState`, `isConnected`, `publicSnapshot`, `adminSnapshot`, `buzz / beginRound / nextTeam / resetRound`, `clear`), `ServerClock` (`sync(serverNow)`, `now()`, `offsetMs`). `AppServices` has `round` and `clock`.
+> - `app/`: `RealtimeCoordinator` (rules 1, 2, 6, 7), `pageVisibility.ts` (`PageVisibility`, `browserPageVisibility`). `main.tsx` builds the `SignalRGameConnection`, passes it as `createAppServices({ connection })` (the F2 option `events` is gone) and starts the coordinator.
+> - `features/dev/`: `RealtimeDebugPage` + `RealtimeDebugViewModel` (+ tests) at `/dev/realtime` (dev only, under `SignedInGuard`, no shell): connection state, identity, the buzzer state, the clock offset, both snapshots as JSON, Buzz for a player, Begin / Next team / Reset for an admin, and the last answer in words.
+> - `test/`: `fakes/FakeGameConnection` (extends `FakeGameEvents`; `calls`, `clearCalls()`, `answers[command]` (a `RoundResult` or an `Error`), `setState`, `connect()` = connected + `onReconnected`, `drop()`, `emitRoundUpdated`, `emitAdminRoundUpdated`), `fakes/FakePageVisibility`; `TestFakes.connection` is the same object as `TestFakes.events`. Factories `makeTeamQueue(teamIds, statusAt?)`, `makePublicSnapshot`, `makeAdminSnapshot`, `makeBuzzes`.
+>
+> **Where each lifecycle rule lives** (for F9's re-read): 1, 2, 6, 7 in `RealtimeCoordinator`; 3, 4 in `RoundStore`; 5, 8 in `SignalRGameConnection`. Each has tests. The connection's start/stop machine is tested with a stub hub and fake timers; two deliberate breaks (no wait for the old connection to close; messages from a stopped connection let through) each failed them, as did removing the coordinator's rule 6.
+>
+> **Deviations and decisions**
+> - **The coordinator lives as long as the app, not in the shell** (F3 suggested the shell). It follows `session.me` with a MobX `reaction`, so no screen, and no StrictMode double mount, can start or stop the connection. StrictMode safety (rule 8) is still built into the connection and tested there.
+> - **`start()` returns nothing** and keeps trying until `stop()`; `stop()` resolves when closed and never rejects. Two additions to the brief's interface: `state`, and `retryNow()` (rule 7).
+> - **Every `start()` builds a new `HubConnection`**, and callbacks from any other one are ignored. A new connection waits until every connection being stopped has closed, so start → stop → start leaves exactly one.
+> - **Identity = player id + role.** Any change of either (sign-out, another person, promotion) stops the connection, clears both snapshots and starts again. A change of name or team doesn't restart.
+> - **Rule 7 goes one step further:** `retryNow()` also replaces a connection that SignalR is still reconnecting (its next try can be up to 10 s away), so an unlocked phone catches up at once.
+> - **`onReconnected` fires after every successful connect, the first included** (data loaded before the first connect may be stale too). Rule 6's `session.refresh()` runs at the same moment as the stores' reload rather than strictly before it: if the session has ended, both get the 401 and the person is signed out either way. `TeamsStore` also refreshes the session on `onReconnected` (F2); the duplicate `/me` is harmless.
+> - **A dropped connection keeps the last snapshot on screen** (only the versions are forgotten), so a short blip doesn't blank the buzzer. The snapshots are cleared only when the identity changes.
+> - **Round commands aren't sent while not connected:** `RoundStore` answers `client.offline` at once. A call that rejects becomes `client.failed`. Both have sentences in `roundErrors.ts`; app-written sentences end without a full stop (F3's rule).
+> - **`getBuzzerState` gives `position` and `buzzedBy` whenever the team is in the queue** (`queued`, `yourTeamUp`, `out`), taken from the server's entry, never counted.
+> - `ServerClock` is a MobX class (`offsetMs` is observable), but `now()` moves with real time, which nothing observes: a screen that shows elapsed time needs its own tick.
+> - **Known limits, not handled:** a first start refused with a 401 (cookie no longer valid) keeps retrying quietly until a REST call, a reconnect or the next unlock reads `/me` and signs the person out. A phone that wakes with a socket that still *looks* open relies on SignalR's 30-second server timeout or the browser closing the socket; the real-device check decides whether that is fast enough.
+> - MobX 7: nothing differed from the shared rules. Bundle: the app chunk grew from 389 kB to 449 kB (SignalR); still under the size notice.
+> - **Checked:** lint, build, tests (752), and the dev server serving `/dev/realtime` and the new modules. **Not checked:** the brief's Check against the real backend (the worker ran no backend, and the developer's database is off limits). For two windows with different people, use two browsers or a private window: windows of one browser profile share the cookie.
+>
+> **Later steps must know**
+> - Read the round from `services.round` (never the connection): `publicSnapshot`, `adminSnapshot`, `connectionState` / `isConnected`, and the commands, which **never reject** and answer a `RoundResult`; `describeRoundError(result.error)` is the sentence.
+> - `getBuzzerState(round.publicSnapshot, session.me?.teamId)` is the buzzer rule. Tests drive `fakes.connection` (`setState('connected')` before a command, `emitRoundUpdated(makePublicSnapshot({ phase: 'open', teamQueue: makeTeamQueue([3, 1]) }))`, `answers.buzz = …`).
+> - `services.clock.now()` is the server's time in ms.
 
 **Model:** Opus 5.5. **Read also:** PlanMVP D5–D8, D13; Appendix A "Hub".
 
@@ -576,6 +609,8 @@ Teams and players change every year: 2026 has six teams; another year may have t
 
 **From F0:** `Buzzer` (`@/components/Buzzer`) takes `state`, `teamColorKey`, `label`, `sublabel?`, `disabled?`, `onPress`. It already fires on `pointerdown`, lets Enter/Space through once, ignores right clicks and (because browsers still send pointer events to a disabled button) ignores presses while `disabled`. The label for a state is `useCopy()[buzzerCopyKeys[state]]` (`@/theme/defaultCopy`). The view model should expose the queue position as a number; the view words it.
 
+**From F4:** `services.round` has `publicSnapshot`, `isConnected` / `connectionState` and `buzz()`, which never rejects (`client.offline` when not connected, `client.failed` when the call failed, else the server's answer); `describeRoundError(code)` (`@/domain/roundErrors`) has every sentence, including "You're in from the next round". `getBuzzerState(round.publicSnapshot, session.me?.teamId)` (`@/domain/buzzerState`) gives `state`, `position` and `buzzedBy`. The round store keeps the last snapshot through a short drop, so show the connection notice next to the buzzer rather than blanking it. A player moved mid-round has the new team in `session.me` while the round still counts them for the old one (D13); `getBuzzerState` then shows the new team's place. Acceptable, but don't build on it. Tests: `fakes.connection` (`setState`, `connect()`, `emitRoundUpdated`, `answers.buzz`) and the factories `makePublicSnapshot`, `makeTeamQueue(teamIds, statusAt)`.
+
 **Goal:** the player's screen: a big buzzer and the team queue.
 
 **Do**
@@ -609,6 +644,8 @@ Teams and players change every year: 2026 has six teams; another year may have t
 **Model:** Sonnet 5.5. **Read also:** PlanMVP §9.4, D17, D19–D21; Appendix A "Teams" and "Players".
 
 **From F0:** `TeamCard` (`@/components/TeamCard`) takes `name`, `colorKey`, `iconKey`, `members: TeamCardMember[]` (`{ id, displayName, realName?, isViewer? }`, so map the wire `Member` in the view model) and two slots: `action` (the card's ⋮ menu) and `renderMemberAction(member)` (the per-member ⋮ or ✎). Member rows are already 44 px high. For the create-team picker, `AppServices.themes` (a `ThemeCatalog`, `@/domain/themeCatalog`) gives a view model the active pack's `colorKeys` and `iconKeys` without importing the theme; the view draws each key with `useTeamVisual`.
+
+**From F4:** "a round is running" (for the D13 note in the move and rename dialogs) is `services.round.publicSnapshot` with a `phase` other than `idle`.
 
 **Goal:** the shared Teams screen. Players see every team and edit their own names. Admins also rename, create and delete teams, edit anyone's names, move players and make admins.
 
@@ -683,6 +720,8 @@ Teams and players change every year: 2026 has six teams; another year may have t
 **Model:** Sonnet 5.5. **Read also:** PlanMVP D10–D12, D29; Appendix A "Hub" and "Archive".
 
 **From F2:** `services.archive` is the `ArchiveApi` (no store). `finalize()` returns the event id the export link needs. F2 also added `exportArchive(eventId)`, which holds the file in memory as a `Blob`: not wanted here (see the last Watch-out). Use the plain link and delete that method and `ApiClient.download` if nothing else uses them.
+
+**From F4:** `services.round` has `adminSnapshot` (undefined until the first admin snapshot of this connection: show "connecting"), `beginRound / nextTeam / resetRound` (never reject; `describeRoundError` has the sentence for each code, `round.emptyRoster` included) and `isConnected`. `services.clock.now()` is the server's time in ms; it is not observable as time passes, so the elapsed-time tick in `activate()` is what makes the view update. `/dev/realtime` (`features/dev/RealtimeDebugPage`) has Begin / Next team / Reset buttons. Tests: `fakes.connection` (`emitAdminRoundUpdated(makeAdminSnapshot(…))`, `answers.beginRound = …`, `setState('connected')`); a `ServerClock` over `Date.now()` follows `vi.useFakeTimers()`.
 
 **Goal:** the host runs a whole round from a phone, and can finalize and export the event.
 
@@ -913,3 +952,8 @@ End-to-end tests are a later addition (PlanMVP §11). Each step appends the scen
 | F3 | Sign out, then the browser's back button: the join page, never a signed-in screen, not even for a moment | Real history and a real cookie; the memory router in the tests has neither |
 | F3 | `/join` at 360 px with 2 and with 13 teams, and with a 24-character team name: no horizontal scroll, inputs full width and at least 44 px tall, the bottom navigation never covers the last field | Layout, Fluent's own input styles and a phone's on-screen keyboard only exist in a real browser |
 | F3 | Six wrong PINs in a row for one name: the sixth attempt is refused with a pause, the message counts down and the button comes back | The real rate limiter and real timers (the tests use fake ones) |
+| F4 | Two browsers with different people (or one in a private window) on `/dev/realtime`, a player and an admin: Begin shows `open` in both at once; only the admin's has the admin snapshot | Two real cookie jars, a real hub and real WebSockets through the proxy |
+| F4 | Restart the API mid-round: every client shows the idle round within seconds, without a reload (the version counter restarted near zero) | Only a real server restart resets the server's version counter and drops the sockets |
+| F4 | Promote a player while their phone is connected: their screen moves to the host screen and receives the admin snapshot without signing in again | `TeamsChanged` → `/me` → role change → restart, across two devices and the real hub groups |
+| F4 | Lock a phone for a minute (or airplane mode for two), unlock: the round is current within a second or two | Throttled timers, frozen pages and dead sockets only happen on a real device |
+| F4 | After load, sign-in and sign-out in development (StrictMode), the network panel shows at most one open WebSocket to `/hubs/game` | Real WebSockets; the tests use a stub hub |
