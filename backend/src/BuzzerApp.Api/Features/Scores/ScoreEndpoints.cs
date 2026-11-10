@@ -64,14 +64,8 @@ public static class ScoreEndpoints
             .ThenBy(t => t.Id)
             .ToListAsync(ct);
 
-        var totals = await db.ScoreAdjustments.AsNoTracking()
-            .Where(a => a.EventId == user.EventId && a.TeamId != null)
-            .GroupBy(a => a.TeamId)
-            .Select(g => new { TeamId = g.Key, Total = g.Sum(a => (long)a.Amount) })
-            .ToListAsync(ct);
-
-        // A team with no ledger rows has no group, so it is absent here and counts as zero: it still gets a row.
-        var totalByTeam = totals.ToDictionary(x => x.TeamId!.Value, x => ClampToInt(x.Total));
+        // A team with no ledger rows is absent from the totals and counts as zero: it still gets a row.
+        var totalByTeam = await ScoreTotals.ByTeamAsync(db, user.EventId, ct);
 
         var ranked = Ranking.Rank(teams, t => totalByTeam.GetValueOrDefault(t.Id));
         return Results.Ok(ranked.Select(r => new TeamScoreResponse(
@@ -89,12 +83,7 @@ public static class ScoreEndpoints
             .Where(t => t.EventId == user.EventId)
             .ToDictionaryAsync(t => t.Id, t => t.Name, ct);
 
-        var totals = await db.ScoreAdjustments.AsNoTracking()
-            .Where(a => a.EventId == user.EventId && a.PlayerId != null)
-            .GroupBy(a => a.PlayerId)
-            .Select(g => new { PlayerId = g.Key, Total = g.Sum(a => (long)a.Amount) })
-            .ToListAsync(ct);
-        var totalByPlayer = totals.ToDictionary(x => x.PlayerId!.Value, x => ClampToInt(x.Total));
+        var totalByPlayer = await ScoreTotals.ByPlayerAsync(db, user.EventId, ct);
 
         // Sorted in memory with an explicit comparer so the order is the same on every database (shared rule).
         return Results.Ok(players
@@ -333,8 +322,6 @@ public static class ScoreEndpoints
 
     private static IResult AlreadyReversed() =>
         Results.Problem(statusCode: StatusCodes.Status409Conflict, title: "Conflict.", detail: "That adjustment has already been undone.");
-
-    private static int ClampToInt(long value) => (int)Math.Clamp(value, int.MinValue, int.MaxValue);
 
     private static AdjustmentResponse ToResponse(ScoreAdjustment a, string targetName, string createdByDisplayName, bool isReversed) => new(
         a.Id,
