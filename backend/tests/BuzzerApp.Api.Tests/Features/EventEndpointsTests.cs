@@ -30,18 +30,20 @@ public class EventEndpointsTests(ApiFactory factory)
     [InlineData(ApiFactory.JoinCode)]
     [InlineData("test-2026")]       // case-insensitive
     [InlineData("  TEST-2026  ")]   // trimmed
-    public async Task Teams_with_a_valid_code_lists_the_six_seeded_teams_in_order(string code)
+    public async Task Teams_with_a_valid_code_lists_every_team_of_the_event_in_sort_order(string code)
     {
+        // Compared with the database, not literals: the number and names of teams change every year.
+        var expected = await factory.ActiveEventTeamsAsync();
+
         var response = await factory.CreateBrowser().GetAsync($"/api/event/teams?code={Uri.EscapeDataString(code)}");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var teams = (await response.ReadJsonAsync()).EnumerateArray().ToList();
-        Assert.Equal(
-            ["Rage Quitters", "Pay To Win", "Cheat Codes", "Smurfs", "AFK Allstars", "RNG Lovers"],
-            // Take(6): other tests add teams to the shared event, and new teams sort after the seeded ones.
-            teams.Select(t => t.GetProperty("name").GetString()!).Take(6).ToArray());
-        Assert.Equal("red", teams[0].GetProperty("colorKey").GetString());
-        Assert.Equal("rage-quitters", teams[0].GetProperty("iconKey").GetString());
+        Assert.True(expected.Count > 1);
+        Assert.Equal(expected.Select(t => t.Id), teams.Select(t => t.GetProperty("id").GetInt32()));
+        Assert.Equal(expected.Select(t => t.Name), teams.Select(t => t.GetProperty("name").GetString()!));
+        Assert.Equal(expected.Select(t => t.ColorKey), teams.Select(t => t.GetProperty("colorKey").GetString()!));
+        Assert.Equal(expected.Select(t => t.IconKey), teams.Select(t => t.GetProperty("iconKey").GetString()!));
     }
 
     [Theory]

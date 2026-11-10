@@ -44,6 +44,7 @@ public static class EventEndpoints
         var teams = await db.Teams.AsNoTracking()
             .Where(t => t.EventId == eventId)
             .OrderBy(t => t.SortOrder)
+            .ThenBy(t => t.Id)   // SortOrder isn't unique; the tiebreaker keeps the order stable between requests
             .Select(t => new JoinTeamResponse(t.Id, t.Name, t.ColorKey, t.IconKey, t.Players.Count))
             .ToListAsync(ct);
 

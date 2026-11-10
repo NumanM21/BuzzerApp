@@ -57,7 +57,7 @@ public class WriteNotificationTests(ApiFactory factory)
         var (spy, client) = NewSpiedBrowser();
         await factory.CreateAdminAsync(client);
         var player = (await factory.RegisterNewPlayerAsync()).PlayerId;   // a separate browser: registering on `client` would replace the admin cookie
-        var targetTeam = await factory.SeededTeamIdAsync(1);
+        var targetTeam = await factory.NewTeamIdAsync();
         int teams = spy.Teams, scores = spy.Scores;
 
         var create = await client.PostAsJsonAsync("/api/teams", new { name = ApiHelpers.UniqueName("Team"), colorKey = ApiHelpers.UniqueName("c"), iconKey = "x" });
@@ -101,11 +101,12 @@ public class WriteNotificationTests(ApiFactory factory)
         var playerId = (await factory.RegisterNewPlayerAsync()).PlayerId;
         var currentTeam = await factory.WithDbAsync(async db => (await db.Players.FindAsync(playerId))!.TeamId!.Value);
         var other = await factory.CreateOtherEventAsync();
+        var existingTeamName = (await factory.FirstTeamAsync()).Name;
         int teams = spy.Teams, scores = spy.Scores;
 
         var responses = new[]
         {
-            await client.PostAsJsonAsync("/api/teams", new { name = "Smurfs", colorKey = ApiHelpers.UniqueName("c"), iconKey = "x" }),   // 409 duplicate name
+            await client.PostAsJsonAsync("/api/teams", new { name = existingTeamName, colorKey = ApiHelpers.UniqueName("c"), iconKey = "x" }),   // 409 duplicate name
             await client.PostAsJsonAsync("/api/teams", new { name = "A", colorKey = "Bad", iconKey = "" }),                               // 400
             await client.PatchAsJsonAsync("/api/teams/999999", new { name = "Whatever" }),                                                // 404
             await client.DeleteAsync($"/api/teams/{currentTeam}"),                                                                        // 409 has players

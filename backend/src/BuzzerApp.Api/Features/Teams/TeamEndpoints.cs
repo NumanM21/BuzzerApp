@@ -38,6 +38,7 @@ public static class TeamEndpoints
         var teams = await db.Teams.AsNoTracking()
             .Where(t => t.EventId == user.EventId)
             .OrderBy(t => t.SortOrder)
+            .ThenBy(t => t.Id)   // SortOrder isn't unique; the tiebreaker keeps the order stable between requests
             .Select(t => new
             {
                 t.Id,

@@ -26,7 +26,7 @@ public class RegisterTests(ApiFactory factory)
         Assert.Equal(display, me.GetProperty("displayName").GetString());
         Assert.Equal("player", me.GetProperty("role").GetString());   // enum serialised as a camelCase string
         Assert.Equal(teamId, me.GetProperty("teamId").GetInt32());
-        Assert.Equal("Rage Quitters", me.GetProperty("teamName").GetString());
+        Assert.Equal(await factory.TeamNameAsync(teamId), me.GetProperty("teamName").GetString());
     }
 
     [Fact]

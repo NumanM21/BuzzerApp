@@ -15,8 +15,24 @@ public static class ApiHelpers
     /// <summary>Names must be unique per event and 2–20 characters, so tests share one database by never reusing one.</summary>
     public static string UniqueName(string prefix) => $"{prefix}-{Guid.NewGuid():N}"[..(prefix.Length + 9)];
 
+    /// <summary>The first team of the active event. Which team that is, and how many there are, depends on the year's seed, so tests never name it.</summary>
     public static async Task<int> FirstTeamIdAsync(this ApiFactory factory) =>
-        await factory.WithDbAsync(db => db.Teams.OrderBy(t => t.SortOrder).Select(t => t.Id).FirstAsync());
+        (await factory.FirstTeamAsync()).Id;
+
+    /// <summary>What the database holds for the active event, in display order: the reference tests compare API output against instead of literals.</summary>
+    public static async Task<List<Team>> ActiveEventTeamsAsync(this ApiFactory factory) =>
+        await factory.WithDbAsync(async db =>
+        {
+            var eventId = await ActiveEventIdAsync(db);
+            return await db.Teams.AsNoTracking().Where(t => t.EventId == eventId).OrderBy(t => t.SortOrder).ThenBy(t => t.Id).ToListAsync();
+        });
+
+    public static async Task<Team> FirstTeamAsync(this ApiFactory factory) =>
+        await factory.WithDbAsync(async db =>
+        {
+            var eventId = await ActiveEventIdAsync(db);
+            return await db.Teams.AsNoTracking().Where(t => t.EventId == eventId).OrderBy(t => t.SortOrder).ThenBy(t => t.Id).FirstAsync();
+        });
 
     public static Task<HttpResponseMessage> RegisterAsync(
         this HttpClient client, string realName, string displayName, int teamId,
@@ -75,13 +91,21 @@ public static class ApiHelpers
     public static Task<int> ActiveEventIdAsync(AppDbContext db) =>
         db.Events.Where(e => e.IsActive).Select(e => e.Id).SingleAsync();
 
-    /// <summary>The n-th seeded team (0-based, by SortOrder). Tests never rename or delete seeded teams, since the database is shared.</summary>
-    public static async Task<int> SeededTeamIdAsync(this ApiFactory factory, int index) =>
+    /// <summary>
+    /// A brand-new team in the active event, inserted directly. Tests that need "another team" create one rather than
+    /// assuming how many teams the seed produced or what they are called: both change from year to year.
+    /// </summary>
+    public static async Task<int> NewTeamIdAsync(this ApiFactory factory) =>
         await factory.WithDbAsync(async db =>
         {
-            var eventId = await ActiveEventIdAsync(db);
-            return await db.Teams.Where(t => t.EventId == eventId).OrderBy(t => t.SortOrder).Skip(index).Select(t => t.Id).FirstAsync();
+            var team = new Team(await ActiveEventIdAsync(db), UniqueName("Team"), UniqueName("c"), "icon", sortOrder: 500, DateTimeOffset.UtcNow);
+            db.Teams.Add(team);
+            await db.SaveChangesAsync();
+            return team.Id;
         });
+
+    public static async Task<string> TeamNameAsync(this ApiFactory factory, int teamId) =>
+        await factory.WithDbAsync(db => db.Teams.Where(t => t.Id == teamId).Select(t => t.Name).SingleAsync());
 
     /// <summary>Creates a team through the API (so the test also depends on the create endpoint working) and returns its id.</summary>
     public static async Task<int> CreateTeamAsync(this AdminSession admin, string? name = null)

@@ -35,7 +35,7 @@ public class SessionLifecycleTests(ApiFactory factory)
     public async Task Me_reads_the_current_names_and_team_from_the_database_not_the_cookie()
     {
         var player = await factory.RegisterNewPlayerAsync();
-        var secondTeamId = await factory.WithDbAsync(db => db.Teams.OrderBy(t => t.SortOrder).Skip(1).Select(t => t.Id).FirstAsync());
+        var secondTeamId = await factory.NewTeamIdAsync();
         await factory.WithDbAsync(async db =>
         {
             var p = await db.Players.SingleAsync(x => x.Id == player.PlayerId);
@@ -48,7 +48,7 @@ public class SessionLifecycleTests(ApiFactory factory)
 
         Assert.Equal("Renamed Now", me.GetProperty("displayName").GetString());
         Assert.Equal(secondTeamId, me.GetProperty("teamId").GetInt32());
-        Assert.Equal("Pay To Win", me.GetProperty("teamName").GetString());
+        Assert.Equal(await factory.TeamNameAsync(secondTeamId), me.GetProperty("teamName").GetString());
     }
 
     [Fact]

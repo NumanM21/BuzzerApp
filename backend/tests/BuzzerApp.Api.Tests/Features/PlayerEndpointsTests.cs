@@ -34,7 +34,7 @@ public class PlayerEndpointsTests(ApiFactory factory)
         Assert.Equal(player.DisplayName, row.GetProperty("displayName").GetString());
         Assert.Equal("player", row.GetProperty("role").GetString());
         Assert.Equal(player.TeamId, row.GetProperty("teamId").GetInt32());
-        Assert.Equal("Rage Quitters", row.GetProperty("teamName").GetString());
+        Assert.Equal(await factory.TeamNameAsync(player.TeamId), row.GetProperty("teamName").GetString());
 
         var adminRow = players.EnumerateArray().Single(p => p.GetProperty("id").GetInt32() == admin.PlayerId);
         Assert.Equal("admin", adminRow.GetProperty("role").GetString());
@@ -67,7 +67,7 @@ public class PlayerEndpointsTests(ApiFactory factory)
         var body = await response.ReadJsonAsync();
         Assert.Equal(newName, body.GetProperty("displayName").GetString());
         Assert.Equal(player.RealName, body.GetProperty("realName").GetString());   // untouched when not sent
-        Assert.Equal("Rage Quitters", body.GetProperty("teamName").GetString());
+        Assert.Equal(await factory.TeamNameAsync(player.TeamId), body.GetProperty("teamName").GetString());
         Assert.Equal(newName, (await factory.GetPlayerAsync(player.PlayerId)).DisplayName);
     }
 
@@ -243,14 +243,14 @@ public class PlayerEndpointsTests(ApiFactory factory)
     {
         var player = await factory.RegisterNewPlayerAsync();
         var admin = await factory.CreateAdminAsync();
-        var target = await factory.SeededTeamIdAsync(1);
+        var target = await factory.NewTeamIdAsync();
 
         var response = await admin.Client.PatchAsJsonAsync($"/api/players/{player.PlayerId}/team", new { teamId = target });
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var body = await response.ReadJsonAsync();
         Assert.Equal(target, body.GetProperty("teamId").GetInt32());
-        Assert.Equal("Pay To Win", body.GetProperty("teamName").GetString());
+        Assert.Equal(await factory.TeamNameAsync(target), body.GetProperty("teamName").GetString());
         Assert.Equal(target, (await factory.GetPlayerAsync(player.PlayerId)).TeamId);
 
         // And the Teams screen shows them in the new team only.
@@ -277,7 +277,7 @@ public class PlayerEndpointsTests(ApiFactory factory)
     public async Task A_player_cannot_move_themselves_or_anyone_else()
     {
         var player = await factory.RegisterNewPlayerAsync();
-        var target = await factory.SeededTeamIdAsync(2);
+        var target = await factory.NewTeamIdAsync();
 
         var response = await player.Client.PatchAsJsonAsync($"/api/players/{player.PlayerId}/team", new { teamId = target });
 
@@ -289,7 +289,7 @@ public class PlayerEndpointsTests(ApiFactory factory)
     public async Task An_admin_cannot_be_put_on_a_team()
     {
         var admin = await factory.CreateAdminAsync();
-        var target = await factory.SeededTeamIdAsync(1);
+        var target = await factory.NewTeamIdAsync();
 
         var response = await admin.Client.PatchAsJsonAsync($"/api/players/{admin.PlayerId}/team", new { teamId = target });
 
@@ -328,7 +328,7 @@ public class PlayerEndpointsTests(ApiFactory factory)
     {
         var admin = await factory.CreateAdminAsync();
         var other = await factory.CreateOtherEventAsync();
-        var target = await factory.SeededTeamIdAsync(1);
+        var target = await factory.NewTeamIdAsync();
 
         Assert.Equal(HttpStatusCode.NotFound, (await admin.Client.PatchAsJsonAsync("/api/players/999999/team", new { teamId = target })).StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await admin.Client.PatchAsJsonAsync($"/api/players/{other.PlayerId}/team", new { teamId = target })).StatusCode);
