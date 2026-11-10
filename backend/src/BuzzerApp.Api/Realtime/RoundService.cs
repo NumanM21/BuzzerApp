@@ -14,7 +14,7 @@ public sealed class RoundService : IRoundTicker
     private readonly BuzzRound _round;
     private readonly IRosterSource _roster;
     private readonly IRoundBroadcaster _broadcaster;
-    private readonly RoundPersistenceQueue _persistence;
+    private readonly IRoundRecordSink _persistence;
     private readonly ILogger<RoundService> _logger;
 
     // Makes "change the round + take its records + queue them" one step. BuzzRound hands each record out once, but if
@@ -35,7 +35,7 @@ public sealed class RoundService : IRoundTicker
         IOptions<RoundSettings> settings,
         IRosterSource roster,
         IRoundBroadcaster broadcaster,
-        RoundPersistenceQueue persistence,
+        IRoundRecordSink persistence,
         ILogger<RoundService> logger)
     {
         _round = new BuzzRound(time, settings.Value);
