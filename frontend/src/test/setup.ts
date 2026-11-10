@@ -1,7 +1,8 @@
 import '@testing-library/jest-dom/vitest';
 import { cleanup } from '@testing-library/react';
-import { afterEach, beforeEach, vi, type MockInstance } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, vi, type MockInstance } from 'vitest';
 import { configureMobx } from '@/mvvm/configureMobx';
+import { server } from './msw/server';
 
 configureMobx();
 
@@ -29,6 +30,11 @@ if (!window.ResizeObserver) {
   };
 }
 
+// The fake network (MSW, in Node). A request no handler describes fails the test rather than reaching the real
+// network; each test starts from the default handlers again, whatever it overrode with `server.use`.
+beforeAll(() => server.listen({ onUnhandledFrame: 'error' }));
+afterAll(() => server.close());
+
 // MobX only warns when state changes outside an action (a forgotten runInAction after an await). A warning is easy
 // to miss in test output, so any MobX warning fails the test that caused it.
 let consoleWarn: MockInstance<typeof console.warn>;
@@ -40,6 +46,7 @@ beforeEach(() => {
 afterEach(() => {
   // With explicit vitest imports (no globals), Testing Library can't register its own cleanup.
   cleanup();
+  server.resetHandlers();
   const mobxWarnings = consoleWarn.mock.calls.filter(([message]) => String(message).startsWith('[MobX]'));
   consoleWarn.mockRestore();
   if (mobxWarnings.length > 0) {
