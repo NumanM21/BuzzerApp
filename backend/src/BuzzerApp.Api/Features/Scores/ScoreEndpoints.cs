@@ -171,19 +171,14 @@ public static class ScoreEndpoints
             errors.Error("direction", "Direction must be \"add\" or \"remove\".");
         }
 
-        var signed = 0;
-        if (request.Amount is { } amount && request.Direction is { } direction)
+        // Stand-ins for a missing amount or direction (already reported above) let ScoreMath still check the other
+        // fields, so one response lists every problem. Nothing is saved when there are errors, so the stand-ins never reach the ledger.
+        var math = ScoreMath.SignedAmount(request.Amount ?? 1, request.Multiplier ?? ScoreMath.MinMultiplier, request.Direction ?? ScoreDirection.Add);
+        if (!math.Success)
         {
-            var math = ScoreMath.SignedAmount(amount, request.Multiplier ?? ScoreMath.MinMultiplier, direction);
-            if (math.Success)
-            {
-                signed = math.Value;
-            }
-            else
-            {
-                AddMathError(errors, math.Error);
-            }
+            AddMathError(errors, math.Error);
         }
+        var signed = math.Value;
 
         var reason = string.IsNullOrWhiteSpace(request.Reason) ? null : request.Reason.Trim();
         if (reason is { Length: > MaxReasonLength })
