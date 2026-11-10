@@ -1,4 +1,8 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using BuzzerApp.Api.Common;
+using BuzzerApp.Api.Features.Event;
+using BuzzerApp.Api.Features.Session;
 using BuzzerApp.Infrastructure;
 using BuzzerApp.Infrastructure.Seeding;
 
@@ -16,17 +20,41 @@ if (string.IsNullOrWhiteSpace(connectionString))
 builder.Services.AddOpenApi();
 builder.Services.AddAppOptions(builder.Configuration);
 builder.Services.AddInfrastructure(connectionString);
+builder.Services.AddAppAuth(builder.Environment);
+builder.Services.AddAppRateLimiting();
+builder.Services.AddSingleton<SignInThrottle>();
+builder.Services.AddSingleton<PinDecoy>();
+builder.Services.AddProblemDetails();
+
+// Enums go out as "admin" / "add" rather than numbers; B6 configures the same converter for SignalR.
+builder.Services.ConfigureHttpJsonOptions(o =>
+    o.SerializerOptions.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.CamelCase)));
 
 // dotnet ef stops the host at Build(), so the seeding below never runs while generating migrations.
 var app = builder.Build();
 
 await DatabaseInitializer.InitializeDatabaseAsync(app.Services, applyMigrations: app.Environment.IsDevelopment());
 
-if (app.Environment.IsDevelopment())
+app.UseExceptionHandler();
+app.UseStatusCodePages();
+
+// Development is plain http so phones on the LAN can reach it (the auth cookie is not Secure there).
+if (!app.Environment.IsDevelopment())
 {
-    app.MapOpenApi();
+    app.UseHttpsRedirection();
 }
 
-app.UseHttpsRedirection();
+app.UseAuthentication();
+app.UseAuthorization();
+app.UseRateLimiter();
+
+if (app.Environment.IsDevelopment())
+{
+    // The fallback policy makes everything private unless it opts out.
+    app.MapOpenApi().AllowAnonymous();
+}
+
+app.MapEventEndpoints();
+app.MapSessionEndpoints();
 
 app.Run();
