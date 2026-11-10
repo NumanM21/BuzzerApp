@@ -30,6 +30,7 @@ builder.Services.AddAppRateLimiting(builder.Configuration);
 builder.Services.AddSingleton<SignInThrottle>();
 builder.Services.AddSingleton<PinDecoy>();
 builder.Services.AddRealtime();
+builder.Services.AddAppHealthChecks();
 builder.Services.AddProblemDetails();
 
 // By default Development makes a bad request (missing or malformed body) throw, which UseExceptionHandler then
@@ -71,6 +72,7 @@ app.MapPlayerEndpoints();
 app.MapScoreEndpoints();
 app.MapArchiveEndpoints();
 app.MapRealtime();
+app.MapHostingEndpoints();
 
 app.Run();
 
