@@ -6,6 +6,7 @@ import { TeamsStore } from '@/stores/TeamsStore';
 import { FakeArchiveApi } from './fakes/FakeArchiveApi';
 import { FakeEventApi } from './fakes/FakeEventApi';
 import { FakeGameEvents } from './fakes/FakeGameEvents';
+import { FakeJoinCodeMemory } from './fakes/FakeJoinCodeMemory';
 import { FakePlayersApi } from './fakes/FakePlayersApi';
 import { FakeScoresApi } from './fakes/FakeScoresApi';
 import { FakeSessionApi } from './fakes/FakeSessionApi';
@@ -21,6 +22,7 @@ export interface TestFakes {
   scoresApi: FakeScoresApi;
   archiveApi: FakeArchiveApi;
   events: FakeGameEvents;
+  joinCodeMemory: FakeJoinCodeMemory;
 }
 
 export function createTestFakes(): TestFakes {
@@ -32,6 +34,7 @@ export function createTestFakes(): TestFakes {
     scoresApi: new FakeScoresApi(),
     archiveApi: new FakeArchiveApi(),
     events: new FakeGameEvents(),
+    joinCodeMemory: new FakeJoinCodeMemory(),
   };
 }
 
@@ -54,6 +57,7 @@ export function createTestServices(
     scores,
     eventApi: fakes.eventApi,
     archive: fakes.archiveApi,
+    joinCodeMemory: fakes.joinCodeMemory,
     ...overrides,
   };
 }
