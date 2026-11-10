@@ -35,6 +35,14 @@
   - Logic that depends on how many teams or players there are (queueing, locking when every team has buzzed, ranking, ties, totals, the archive) is tested with a `[Theory]` over several shapes, for example 2, 6, 13 and 30 teams (see `Shapes` in `BuzzRoundConcurrencyTests`), plus the edge cases that matter (one team, equal totals, a team with no players).
   - Literal names are fine when the test supplies its own data (a Core roster built inside the test, a key-format example). They are not fine when they restate what the seed happens to contain.
   - **Quick check for any step that touches teams or players:** temporarily change `Event:Teams` in `appsettings.json` to 3 teams, then to 8, and run the Api tests. They must still pass. Restore the file afterwards.
+- **Every list has a deterministic order.** Anything a step returns as a list (endpoint, snapshot, archive, ranking) must come back in the same order for the same data, however many times and in whatever order the rows were inserted. The only exception is when the order *is* the data: the buzz queue and recorded buzzes (arrival order, `Sequence`).
+  - Give every list an explicit sort that **ends in a unique tiebreaker**, normally `Id`. `SortOrder`, totals, ranks, timestamps and display names are not unique on their own (two admins can create teams at once; two players can have equal scores; two rows can share a `CreatedAt`). Postgres returns rows in no guaranteed order, and an `OrderBy` without a tiebreaker returns ties in an arbitrary one.
+  - The default orders: teams by `SortOrder`, `Id`; players and team members by display name (ignoring case), `Id`; the adjustment history newest first by `CreatedAt` descending, `Id` descending; a scoreboard by total descending, then the entity's default order above (give `Ranking.Rank` input that is **already** in that default order, because it keeps input order for ties); a roster or any other internal list by `Id`.
+  - Name sorts use an explicit comparer in memory (`StringComparer.OrdinalIgnoreCase`), not the database collation, so a laptop's Docker Postgres and Azure agree.
+  - Never put the enumeration of a `Dictionary`, `HashSet` or a `GroupBy`/`ToDictionary` result into a response or snapshot without sorting it first. Lookups are fine; iteration order is not part of their contract.
+  - Why: this removes a whole class of flaky behaviour (a list that reorders between refreshes, a snapshot that differs for identical data, a test that passes on one run and fails on the next) and it lets tests assert an exact order instead of "contains".
+  - Tests assert the order the contract defines (computed from the same rule, or compared against the database read with that rule), not just "the right items". When an order is deliberately not part of a contract, compare as a set.
+  - **Review for it** whenever you add or touch a query or a list: search the step's code for `ToListAsync`, `Select(`, `GroupBy`, `Dictionary` and `HashSet` and check that each one that reaches a response has a full sort.
 
 ---
 
@@ -230,6 +238,7 @@ Kept for reference; **do not redo.** What exists now, including where it differs
 - **For B5:** promoting a player doesn't touch the ledger, so an admin can still have `PlayerId` score rows from when they were a player. `GET /api/scores/players` already excludes admins (brief), and the adjustment target check already requires role `Player`; B7's player list must exclude them too.
 - **Not run live:** the new `.http` requests (B4 section at the end of the file) were not run against the dev database, to keep the developer's dev data untouched; the same cases are covered by the integration tests against a throwaway PostgreSQL.
 - **Follow-up, tests made independent of the seed:** the Api tests no longer name the 2026 teams or assume six of them (they create teams or read them from the database), and `BuzzRoundConcurrencyTests` runs over 2, 6, 13 and 30 teams (`Shapes`). Both were checked by running the Api suite with 3 and then 8 teams in `Event:Teams`. This surfaced one product fix: team lists (`GET /api/teams`, `GET /api/event/teams`) now order by `SortOrder` **then `Id`**, because `SortOrder` isn't unique (two admins creating teams at once can tie) and Postgres returned ties in an arbitrary order.
+- **Follow-up, deterministic-order review (after B4):** every list in B1–B4 was checked against the shared "Every list has a deterministic order" rule. Core is clean: `BuzzRound` only *looks up* its `Dictionary` / `HashSet` and never enumerates them into output, the queue and buzz lists are in arrival order, and `Ranking.Rank` keeps input order for ties (so its callers must pre-sort, which B5 and B7 do). Api: `GET /api/teams`, `GET /api/event/teams` (`SortOrder`, `Id`), team members and `GET /api/players` (display name ignoring case, `Id`) now all end in an `Id` tiebreaker; the only one that actually misbehaved was the team lists (`SortOrder` ties). Tests: the team lists, member order and player list order are asserted exactly, and the player list is also checked to be byte-identical on two requests.
 
 Original brief:
 
@@ -250,10 +259,11 @@ Original brief:
 
 - `Features/Scores/ScoreEndpoints.cs` (§8.5). Use `ScoreMath.SignedAmount` for the amount and `Ranking.Rank` for team ranks.
 - Adjustment target: a team in the event, or a player in the event with role `Player` (else 400). Set `CreatedByPlayerId` = the current admin. Return 201.
-- `GET /api/scores/teams`: every team, including zero totals (left join / group in memory; ~6 rows). `GET /api/scores/players`: every `Player`-role player, including zeros, excluding admins.
+- `GET /api/scores/teams`: every team, including zero totals (left join / group in memory; a handful of rows). `GET /api/scores/players`: every `Player`-role player, including zeros, excluding admins.
 - `GET /api/scores/adjustments?take=`: clamp to 1–100, default 20. Include the target name, the created-by display name, `reversesAdjustmentId`, and an `isReversed` flag.
 - Reverse: 404 if missing; 400 if the row is itself a reversal; 409 if already reversed (pre-check + 23505 catch). The new row has `Amount = -original` and the same target.
 - Every write → `ScoresChangedAsync()`.
+- **Order (shared rule):** `GET /api/scores/teams`: total descending, then `SortOrder`, `Id` (feed `Ranking.Rank` teams already sorted by `SortOrder`, `Id`). `GET /api/scores/players`: total descending, then display name (ignoring case), `Id`. `GET /api/scores/adjustments`: newest first by `CreatedAt` **descending, then `Id` descending**: two rows can share a timestamp (an add and its undo in quick succession), and `Id` is what keeps `take` stable.
 - **Tests:** follow the shared rule on not hard-coding the 2026 event. Create the teams and players each test needs, vary how many there are (ranking with 2, several and many teams; ties; a team with no score rows) and filter results by the ids you created, since the shared database holds other tests' teams.
 - **Check:** totals add up in the `.http` walkthrough, a second reverse returns 409, and ties share a rank.
 
@@ -280,6 +290,12 @@ Original brief:
 - **`Realtime/HubGameNotifier : IGameNotifier`** sends `TeamsChanged` / `ScoresChanged` to All and replaces `NullGameNotifier`.
 - `AddSignalR().AddJsonProtocol(o => ...)` gets the same camelCase enum converter as HTTP.
 - **Tests:** follow the shared rule on not hard-coding the 2026 event. Round and roster tests build their own teams and players, and vary the team count (2, several, many) wherever "all teams have buzzed" or the queue size matters.
+- **Determinism sweep (Opus: please do this as part of the step).** B6 is where the concurrency picture is complete, so after the hub, service, clock and persistence exist, review **all** code from B1 to B6 against the shared rule "Every list has a deterministic order". A review after B4 found Core clean and the Api lists fixed (see B4), so the sweep is for what is new and for what the new concurrency could expose. Check at least:
+  - The roster query in `BeginAsync`: `OrderBy(TeamId).ThenBy(PlayerId)` (`BuzzRound` only looks the roster up, but a stable roster keeps rounds reproducible and tests exact).
+  - `RoundPersistenceWorker`: insert the `BuzzRecord`s in `Sequence` order so their ids rise with the sequence, and read them back with `Sequence` as the sort. Outcomes are matched to teams by lookup, never by position in a collection.
+  - Any collection copied into a snapshot or a persistence record: it must come from an ordered source (`_queue`, the buzz list), never from a `Dictionary` / `HashSet` / `GroupBy`.
+  - Places where two requests can race and change a list's order: concurrent team creation (`SortOrder` ties, already handled with `Id`), ledger rows with equal `CreatedAt` (B5), snapshots sent from several threads (`Version` is the backstop).
+  - Anything else in B1–B5 that has been added since this was written. Fix what you find with a tiebreaker and an exact-order test, and record the result here in the B6 DONE note.
 - **Check:** write a throwaway console client in the session scratchpad, **not committed**. It uses `Microsoft.AspNetCore.SignalR.Client` + `HttpClient` with a `CookieContainer` for sign-in, and passes the cookies to the hub connection. Run 2 players on different teams + 1 admin through: Begin → one buzz → auto-lock after ~2 s with no further input → NextTeam → Reset. Then confirm that the admin receives individual buzzes and players don't, and that `Round` / `BuzzRecord` rows show LockedAt, EndedAt and outcomes.
 
 ---
@@ -291,6 +307,7 @@ Original brief:
   - `POST /api/archive/finalize` (admin): `roundsPlayed` = rounds with `LockedAt != null`; `totalBuzzes` = BuzzRecord count. Serialize with `JsonSerializerDefaults.Web`, upsert `EventArchive` (unique per event), set `Event.FinalizedAt`. Can be re-run.
   - `GET /api/archive/{eventId}/export` (admin): `Results.File(bytes, "application/json", $"buzzer-archive-{year}.json")`; 404 if not finalized.
 - **Tests:** follow the shared rule on not hard-coding the 2026 event: `ArchiveBuilder` tests use several team counts (including one team and a team with no members) and tied totals; the endpoint tests build their own teams and compare with the database.
+- **Order (shared rule):** the document must be the same for the same data, so the endpoint passes `ArchiveBuilder` **pre-sorted** input and the builder sorts nothing implicitly. Teams: rank, then `SortOrder`, `Id`. Members: display name (ignoring case), `Id`. Players: rank, then display name (ignoring case), `Id`. Test that building twice from the same input, and from the same input shuffled, gives identical JSON apart from `generatedAt`.
 - **Check:** finalize → export → the file has `schemaVersion: 1`, correct totals and ranks. **Don't commit the file** (`.gitignore` already covers `buzzer-archive-*.json`).
 
 ---
