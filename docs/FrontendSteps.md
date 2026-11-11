@@ -27,7 +27,7 @@ Opus is suggested where a mistake is expensive: F0 fixes the architecture for ev
 
 Nothing here is done by the AI worker. Each brief ends with a **Developer does** list for anything specific to that step.
 
-> **Manual testing is deferred (decided 11 Nov 2026).** The developer is finishing every B and F step first and will get hands-on with the app (phones, real backend, the setup and checks below) once, just before deployment. Until then **ignore the "try it" parts of this guide and the briefs' "Developer does" items**: nothing is blocked on them, and a step is done when lint, build and tests pass. Each worker's DONE note says which manual checks it did not run; those, together with Appendix B, are the list for the hands-on pass.
+> **Manual testing is deferred (decided 11 Nov 2026).** The developer is finishing every B and F step first and will get hands-on with the app (phones, real backend, the setup and checks below) once, just before deployment. Until then **ignore the "try it" parts of this guide and the briefs' "Developer does" items**: nothing is blocked on them, and a step is done when lint, build and tests pass. Each worker's DONE note says which manual checks it did not run, and **every step adds its checks to `docs/ManualTestChecklist.md`**, the ordered walkthrough you follow in that pass (F9 turns it into one start-to-finish session). Appendix B (Playwright candidates) is a separate, later backlog.
 
 ### One-time setup (before F0)
 
@@ -74,9 +74,10 @@ No GitHub settings change during Milestone F: the `frontend` check already exist
 - The developer's prompt "Do F<n>" counts as "go". Don't stop to propose a file list. Stop and ask only when the brief is unclear, looks wrong, or needs a decision that isn't yours (a PlanMVP decision, a backend change, a new package not listed in the brief).
 - **Branch:** work on the checked-out branch, which must be `frontend-f<n>`. If it is `main` or another step's branch, stop and tell the developer. Never create, switch or delete branches.
 - **Commits:** small, one logical change each, in the imperative ("Add the API client"). **No push, no PR.** No Claude attribution (no `Co-Authored-By`, no "Generated with" line).
-- **Done** means all of these pass in `frontend/`, with zero warnings: `npm run lint`, `npm run build`, `npm test`. The step's own **Check** needs a browser or the real backend, so it is deferred to the developer's hands-on pass before deployment: don't wait for it, and list in your DONE note which parts you did not run. Never disable a lint rule, skip a test, add `// @ts-ignore` or use `any` to get there. If a rule seems wrong, ask.
+- **Done** means all of these pass in `frontend/`, with zero warnings: `npm run lint`, `npm run build`, `npm test`. The step's own **Check** needs a browser or the real backend, so it is deferred to the developer's hands-on pass before deployment: don't wait for it, and list in your DONE note which parts you did not run, and add them to `docs/ManualTestChecklist.md` (below). Never disable a lint rule, skip a test, add `// @ts-ignore` or use `any` to get there. If a rule seems wrong, ask.
 - **Finish** with a short summary for the developer (a few paragraphs): what was built, why it is shaped that way, anything non-obvious. The developer reads C# well and is new to React, TypeScript and MobX, so explain frontend ideas in plain words and compare with C# where it helps.
-- **Mark the step done in this file as your last commit:** in the table, change the branch cell to `` `frontend-f<n>` — **DONE** ``; add ` — DONE` to the step's heading; add a "Kept for reference; **do not redo.**" note above the brief listing what exists, every deviation from the brief, and what later steps must know; if something affects a later step, add it to that step's brief too; append your rows to Appendix B; update the "start at F<n>" line at the top. Commit as `Mark F<n> done in FrontendSteps`.
+- **Manual test checklist (part of "done"):** before you mark the step done, add the manual checks for what you built to `docs/ManualTestChecklist.md`, following "For AI workers" at the top of that file: one row per thing to try, written for someone who did not read the code, with what to do and exactly what to expect, in the section where a person meets it, with the failure cases as well as the happy path. Include the brief's "Check" and "Developer does" items and everything your DONE note lists as not checked. Update or delete rows of earlier steps that your change made wrong. Commit it as `Add F<n> manual checks`. Tick nothing: only the developer does. Don't ask the developer to run anything now.
+- **Mark the step done in this file as your last commit:** in the table, change the branch cell to `` `frontend-f<n>` — **DONE** ``; add ` — DONE` to the step's heading; add a "Kept for reference; **do not redo.**" note above the brief listing what exists, every deviation from the brief, and what later steps must know; if something affects a later step, add it to that step's brief too; append your rows to Appendix B; say in the DONE note that the manual checks are in `docs/ManualTestChecklist.md`; update the "start at F<n>" line at the top. Commit as `Mark F<n> done in FrontendSteps`.
 - Comments explain *why*, not *what*.
 - **Packages:** install only what your brief lists. Look up the current stable version (`npm view <name> version peerDependencies`); never guess, and never use `--force` or `--legacy-peer-deps`. Several libraries are newer than you may expect (MobX 7, react-router 8, Vitest 5, MSW 3, TypeScript 6, Vite 8, ESLint 10): **check their current documentation instead of writing from memory.** Versions confirmed on 10 Nov 2026 to accept React 19 and Vite 8: `@fluentui/react-components` 9.75, `@fluentui/react-icons` 2.0, `react-router` 8.5, `mobx` 7.1, `mobx-react-lite` 5.1, `@microsoft/signalr` 10.0, `vitest` 5.1, `msw` 3.0, `@testing-library/react` 16.3, `jsdom` 31.
 - **Don't touch** `backend/`, the developer's Docker database, or User Secrets. Don't run `docker compose`. The tests need none of them.
@@ -462,6 +463,7 @@ Teams and players change every year: 2026 has six teams; another year may have t
 > - **Every signed-in screen is already inside `AppLayout`**, which provides the `<main>`: a page renders its content and an `<h1>`, not another `<main>`. The page's width, padding and layout are the page's own.
 > - **F5–F8 replace the placeholder pages in place** (same file, same exported name, so `routes.ts` doesn't change). Delete `components/PlaceholderPage` when F8 has replaced the last user.
 > - **F4:** the shell doesn't own a connection. Start it where `session.status` becomes `signedIn` (the shell is the natural place: it exists exactly while someone is signed in), and stop it on sign-out.
+> - **F9 should look at this:** `JoinViewModel` has its own private mapping of a failed call to field messages (`showFailure`, `showServerFieldErrors`, `isJoinField`). F6 later added the shared `mvvm/FormSubmission.ts` (`readFailure` + `FormSubmission`), which does the same job for every dialog and is tested once. There are now two copies of that rule. F6 left the join screen alone on purpose; F9 decides whether to move it onto the shared helper (the join screen has extras that must survive: the rate-limit countdown, the "Sign in instead" 409 case, the team-list lookup errors).
 > - **Tests of a whole screen:** use `renderApp(route, services)` to land on a screen through the real guards; with MSW-backed services (`createAppServices`) wait for the page's heading before querying, because the start-up calls are real requests.
 
 **Model:** Sonnet 5.5. **Read also:** PlanMVP D18, D19, D21, D22; Appendix A "Event" and "Session".
@@ -673,7 +675,7 @@ Teams and players change every year: 2026 has six teams; another year may have t
 >
 > **Deviations and decisions**
 > - **`TeamsViewModel` builds the dialog view models** and holds the one open `dialog` (a union with a `kind`), handing each the store and a way to close itself. The dialog views take their view model as a prop, so no dialog needs the route or the services. Opening a dialog the viewer may not use (a player's `openRenameTeam`, someone else's row) does nothing: the rule is in the view model, not only in what the view draws.
-> - **`FormSubmission` is new** (not in the brief): five dialogs share the same validate / send / map-the-error cycle, and it is tested once. `JoinViewModel` still has its own copy of the field-error mapping from F3; it was not moved onto `readFailure`, to keep this step's diff to the Teams screen. F7's entry form should use `FormSubmission`.
+> - **`FormSubmission` is new** (not in the brief): five dialogs share the same validate / send / map-the-error cycle, and it is tested once. `JoinViewModel` still has its own copy of the field-error mapping from F3 (see the F3 note, "F9 should look at this"); it was not moved onto `readFailure`, to keep this step's diff to the Teams screen. **F7's entry form should use `FormSubmission`; F9 should settle the duplicate.**
 > - **Which field a `409` belongs to is read from the server's sentence** (as F3 does for "real name"): for names, "real name" → real name field, otherwise display name; for a new team, "colour" → colour, otherwise name; a rename's only `409` is the name. If the backend wording changes, `isRealNameTakenMessage` / `isColourTakenMessage` and their tests change.
 > - **Add team** preselects the first free colour and the first icon (a host adding a team on the night can just type a name); the choice is a getter, so a colour another admin takes meanwhile moves the selection to the next free one. When no colour is free the dialog says so and drops the confirm button. The pack's keys come from `AppServices.themes` for the event's `themeKey` (an unknown or missing key gives the default pack's keys, as the registry does). The picker lives in `components/` (`TeamStylePicker`) and is given plain strings.
 > - **Delete is always offered**: only the server knows about scores and buzz history, and its `409` sentence is shown in the dialog.
@@ -686,6 +688,7 @@ Teams and players change every year: 2026 has six teams; another year may have t
 > **Later steps must know**
 > - **F7:** use `FormSubmission` (`mvvm/FormSubmission.ts`) for the adjustment entry (fields `amount`, `multiplier`, `targetId`, `reason` map straight onto the server's `400` field names; for the undo's `409`, show the text and reload). `FormDialog` is there if an undo needs a confirmation.
 > - **F8:** `FormDialog` suits the Finalize confirmation. `isRoundRunning(snapshot)` is in `domain/round.ts`.
+> - **F9:** the duplicated error mapping in `JoinViewModel` (see above), and the manual checks (`docs/ManualTestChecklist.md`, section 4).
 
 **Model:** Sonnet 5.5. **Read also:** PlanMVP §9.4, D17, D19–D21; Appendix A "Teams" and "Players".
 
@@ -807,7 +810,7 @@ Teams and players change every year: 2026 has six teams; another year may have t
 Each step was built in isolation, mostly by smaller models. This step finds what they missed and proves the app works end to end once, before deployment.
 
 **1. Review** (report findings first, grouped by severity; then fix in small commits, each with a test that failed before the fix where a test is possible)
-- **Architecture:** every layer rule in the shared table (the lint rules prove imports; read for logic that leaked into views, React that leaked into view models, a store bypassed by a view model calling an API, duplicated rules that should be one function in `domain/`).
+- **Architecture:** every layer rule in the shared table (the lint rules prove imports; read for logic that leaked into views, React that leaked into view models, a store bypassed by a view model calling an API, duplicated rules that should be one function in `domain/`). **Known duplicate to settle:** `JoinViewModel`'s own mapping of server errors to field messages (F3) versus the shared `mvvm/FormSubmission.ts` / `readFailure` (F6). Either move the join screen onto the shared helper (keeping its rate-limit countdown, the "Sign in instead" 409 case and the team-list errors, all covered by `JoinViewModel.test.ts`) or record why not. Look for any other rule that two steps wrote twice.
 - **Theme separation:** switch the event to the `default` pack and use every screen. Anything that looks broken or still looks "arcade" is a leak. Would next year's pack need a component change? If so, the contract is missing a slot.
 - **Other years:** search for the 2026 team names, colour keys, icon keys and the number six outside `packs/arcade-2026/`. Run the app against 3 teams and against 8 (the backend's `Event:Teams` config with a fresh join code).
 - **Lifecycle:** F4's eight rules, re-read against the code and the tests.
@@ -821,13 +824,18 @@ Each step was built in isolation, mostly by smaller models. This step finds what
 - Drive real browsers (whatever automation the session has; a throwaway Playwright script in the scratchpad is fine) with several players on several teams and two admins: join and sign-in with every error case; names hidden and shown correctly; team admin; scoring and undo; several rounds including near-simultaneous buzzes; **restart the API mid-round** and confirm every client recovers without a reload; promote a player and confirm they become a host without signing in again; finalize and export.
 - Repeat the core path with a different team count and with the `default` pack.
 
-**3. Wrap up**
+**3. The manual walkthrough for the developer**
+- `docs/ManualTestChecklist.md` has the checks every step added, in sections by area. Turn it into **one start-to-finish session** the developer can follow on real phones: dedupe, remove rows a later step made wrong, add rows for gaps the review found, fill section 7 ("Whole-evening run") with a script that plays a whole games night once in the order it would happen on the day, and write the setup at the top so nothing is assumed.
+- Mark which rows your live walkthrough already proved (say how), so the developer can skim those and spend time on what only a person with a phone can judge: look, size, wording, speed, the feel of the buzzer.
+- Check that every row says what to do and what to expect, and that nothing in it needs the developer's dev database or User Secrets beyond what the setup says.
+
+**4. Wrap up**
 - Decide the F8 open item (export before finalize) with the developer.
 - Check what deployment will need and note it for Milestone R: the API serves `index.html` with caching headers that won't leave a phone on an old build after a redeploy (there is no service worker, so this is the only stale-app risk); the web manifest and Screen Wake Lock belong to R1.
 - Tidy Appendix B into a prioritised Playwright backlog (which five would catch the most).
 - Update `docs/PlanMVP.md`, `CLAUDE.md` and this file for anything that changed, add an entry to `docs/DecisionLog.md`, and mark F9 done.
 
-**Developer does:** read the findings report before the fixes go in; answer the open items; then plan Milestone R (deployment).
+**Developer does:** read the findings report before the fixes go in; answer the open items; **then do the hands-on pass from `docs/ManualTestChecklist.md`** (the one deferred since 11 Nov); then plan Milestone R (deployment).
 
 ---
 
