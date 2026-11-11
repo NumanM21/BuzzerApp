@@ -9,7 +9,7 @@
 | # | Part of the brief | What it is | Status |
 |---|---|---|---|
 | 1a | 1. Review | Read the whole frontend against the shared rules; write the findings below, by severity | **done** (11 Nov 2026) |
-| 1b | 1. Review | Fix the findings in small commits, each with a test that failed first where one is possible | in progress: see the "Fix" column below |
+| 1b | 1. Review | Fix the findings in small commits, each with a test that failed first where one is possible | **done** except M4, which waits for the developer. 1347 tests, lint and build clean |
 | 2 | 2. Live walkthrough | Separate PostgreSQL container, API in Production mode serving the built frontend, real browsers driven by a throwaway script; then once through the Vite dev server; another team count; the `default` pack | not started |
 | 3 | 3. Manual walkthrough | Turn `docs/ManualTestChecklist.md` into one start-to-finish session; fill section 7; mark what the live walkthrough proved | not started |
 | 4 | 4. Wrap up | Export-before-finalize decision (the developer's); deployment notes for Milestone R; Appendix B in priority order; PlanMVP / CLAUDE.md / DecisionLog; mark F9 done | not started |
@@ -35,12 +35,12 @@ Severity: **High** = would hurt on event day. **Medium** = wrong behaviour in a 
 | M4 | Medium | **Export needs a Finalize in the same visit** (F8's open item). Not a code fault: the event id is only in the finalize answer | The developer decides (see below) | waiting |
 | L1 | Low | The map "team id → colour and icon key" is built by the same three lines in `PlayViewModel` and `HostViewModel` | **fixed** (`teamLooksById`) |
 | L2 | Low | Seven pages each carry their own copy of the page, heading and section styles (with the same comment), and the 44 px tap-target size is written in about twenty places | **fixed** (`components/usePageStyles.ts`, `components/sizes.ts`). The dev-only theme preview keeps its own headings |
-| L3 | Low | `TeamPicker` and `TeamStylePicker` repeat the same radio-card frame (fieldset, legend, grid, card, focus ring, error line) | One `RadioCardGroup` component both use | open |
+| L3 | Low | `TeamPicker` and `TeamStylePicker` repeat the same radio-card frame (fieldset, legend, grid, card, focus ring, error line) | **fixed** (`components/RadioCards.tsx`: `RadioCardGroup` and `RadioCard`, with its own test) |
 | L4 | Low | `compareNames` compares lower-cased names; the server orders by upper-cased ones. Names containing `_`, `[`, `]`, `^` or a backtick sort differently in the admin's "Sort by Team" than on the Teams screen | **fixed** |
 | L5 | Low | Types written twice: `ConnectionName` (domain) and `ConnectionState` (realtime); `ScoreTargetKind` / `ScoreDirection` (domain) and `ScoreTarget` / `ScoreDirection` (api) | **fixed** (also `PlayerRole` / `Role`, found while doing it) |
 | L6 | Low | A few comments tell the build history instead of the reason ("arrives in F4", "(F6)", "a decision for F9") | **fixed**, except the note in `EventAdminViewModel` about the export decision, which goes when M4 is decided |
 | L7 | Low | The browser tab's title stays "Buzzer"; F0 expected the event's name to replace it | Optional. Belongs with R1's web manifest (the home-screen name); noted for Milestone R | note only |
-| L8 | Low | Twelve test assertions only check that a message exists (`toBeDefined()`). Fine where the text is the server's; weaker where the app wrote the sentence | Tighten the ones on the app's own messages while touching those files | open |
+| L8 | Low | Twelve test assertions only check that a message exists (`toBeDefined()`). Fine where the text is the server's; weaker where the app wrote the sentence | **fixed** for the app's own sentences (9 assertions); the rest are preconditions inside a test whose real assertion follows |
 
 ### Checked and found fine
 
