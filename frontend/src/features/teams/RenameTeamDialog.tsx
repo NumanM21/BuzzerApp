@@ -4,12 +4,13 @@ import { FormDialog } from '@/components/FormDialog';
 import { useDialogStyles } from '@/components/useDialogStyles';
 import type { RenameTeamViewModel } from './RenameTeamViewModel';
 
-export const RenameTeamDialog = observer(function RenameTeamDialog({ vm }: { vm: RenameTeamViewModel }) {
+export const RenameTeamDialog = observer(function RenameTeamDialog({ vm, open }: { vm: RenameTeamViewModel; open: boolean }) {
   const styles = useDialogStyles();
   const error = vm.form.fieldErrors.name;
 
   return (
     <FormDialog
+      open={open}
       title={`Rename ${vm.currentName}`}
       submitLabel="Rename"
       isSubmitting={vm.form.isSubmitting}

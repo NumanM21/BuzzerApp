@@ -1,4 +1,4 @@
-import { Button, makeStyles, tokens } from '@fluentui/react-components';
+import { Button, makeStyles, tokens, useRestoreFocusTarget } from '@fluentui/react-components';
 import { observer } from 'mobx-react-lite';
 import { useViewModel } from '@/app/useViewModel';
 import { usePageStyles } from '@/components/usePageStyles';
@@ -23,6 +23,8 @@ export const AdminEventPage = observer(function AdminEventPage() {
   const vm = useViewModel((services) => new EventAdminViewModel(services.archive));
   const styles = useStyles();
   const page = usePageStyles();
+  // Where the keyboard goes back to when the confirmation closes.
+  const restoreFocusTarget = useRestoreFocusTarget();
 
   return (
     <div className={page.page}>
@@ -36,7 +38,7 @@ export const AdminEventPage = observer(function AdminEventPage() {
           Saves this event&apos;s teams, members and scores as a frozen archive. Do it when the games are over. It can
           be repeated: each time replaces the archive.
         </p>
-        <Button className={styles.button} appearance="primary" onClick={vm.askToFinalize}>
+        <Button {...restoreFocusTarget} className={styles.button} appearance="primary" onClick={vm.askToFinalize}>
           Finalize the event
         </Button>
         {vm.finalizedText !== undefined && (
@@ -69,7 +71,8 @@ export const AdminEventPage = observer(function AdminEventPage() {
         )}
       </section>
 
-      {vm.isConfirming && <FinalizeDialog vm={vm} />}
+      {/* Always on the page; `vm.isConfirming` opens and closes it (see `FormDialog.open`). */}
+      <FinalizeDialog vm={vm} />
     </div>
   );
 });

@@ -16,6 +16,11 @@ import type { FormEvent, ReactNode } from 'react';
 import { TAP_TARGET } from './sizes';
 
 export interface FormDialogProps {
+  /**
+   * False while the dialog is closing. Close a dialog by passing `false`, not by no longer rendering it: only then
+   * does it un-hide the rest of the app for screen readers and return the keyboard to the button that opened it.
+   */
+  open: boolean;
   title: string;
   submitLabel: string;
   isSubmitting: boolean;
@@ -46,6 +51,7 @@ const useStyles = makeStyles({
  * field submits. It is only the frame: what the fields are and what happens on submit belong to the view model.
  */
 export const FormDialog = observer(function FormDialog({
+  open,
   title,
   submitLabel,
   isSubmitting,
@@ -65,7 +71,7 @@ export const FormDialog = observer(function FormDialog({
 
   return (
     <Dialog
-      open
+      open={open}
       modalType="modal"
       onOpenChange={(_, data) => {
         if (!data.open) {

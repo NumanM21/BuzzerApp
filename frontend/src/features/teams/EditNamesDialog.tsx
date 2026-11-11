@@ -5,12 +5,13 @@ import { useDialogStyles } from '@/components/useDialogStyles';
 import type { EditNamesViewModel } from './EditNamesViewModel';
 
 /** Display name and real name, both prefilled; the view model sends only what changed. */
-export const EditNamesDialog = observer(function EditNamesDialog({ vm }: { vm: EditNamesViewModel }) {
+export const EditNamesDialog = observer(function EditNamesDialog({ vm, open }: { vm: EditNamesViewModel; open: boolean }) {
   const styles = useDialogStyles();
   const { fieldErrors } = vm.form;
 
   return (
     <FormDialog
+      open={open}
       title={vm.isOwn ? 'Edit your names' : `Edit names: ${vm.subjectName}`}
       submitLabel="Save"
       isSubmitting={vm.form.isSubmitting}

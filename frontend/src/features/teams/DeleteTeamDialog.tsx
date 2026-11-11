@@ -4,11 +4,12 @@ import { useDialogStyles } from '@/components/useDialogStyles';
 import type { DeleteTeamViewModel } from './DeleteTeamViewModel';
 
 /** The server's refusal (the team has players, scores or buzz history) shows here as it was worded. */
-export const DeleteTeamDialog = observer(function DeleteTeamDialog({ vm }: { vm: DeleteTeamViewModel }) {
+export const DeleteTeamDialog = observer(function DeleteTeamDialog({ vm, open }: { vm: DeleteTeamViewModel; open: boolean }) {
   const styles = useDialogStyles();
 
   return (
     <FormDialog
+      open={open}
       title={`Delete ${vm.teamName}?`}
       submitLabel="Delete team"
       isSubmitting={vm.form.isSubmitting}

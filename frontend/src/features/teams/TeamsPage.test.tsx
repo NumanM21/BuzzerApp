@@ -1,4 +1,4 @@
-import { screen, within } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { describe, expect, it } from 'vitest';
 import { createAppServices } from '@/app/AppServices';
@@ -145,6 +145,26 @@ describe('TeamsPage as a player', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     // Only the changed name goes on the wire.
     expect(body).toEqual({ displayName: 'Ace' });
+  });
+
+  // While a dialog is open the rest of the app is hidden from screen readers; once it is closed the app must be
+  // readable again. (A dialog is closed by telling it so, not by removing it: see `useLastDefined`. That the real
+  // browser also un-hides the page and returns the keyboard to the opening button can't be seen in jsdom; the F9
+  // live walkthrough checks it, and it is in the Playwright backlog.)
+  it('closes a dismissed dialog and leaves the screen readable, and the dialog can be opened again', async () => {
+    const teams = { current: makeTeams(2, { membersPerTeam: 2 }) };
+    const { user } = await openTeams(makeMe({ playerId: 1 }), teams);
+
+    await user.click(screen.getByRole('button', { name: 'Edit your names' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Edit your names' });
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(await screen.findByRole('heading', { name: 'Teams' })).toBeInTheDocument();
+    expect(await screen.findByRole('navigation', { name: 'Main' })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Edit your names' }));
+    expect(await screen.findByRole('dialog', { name: 'Edit your names' })).toBeInTheDocument();
   });
 
   it('sees every team but offers admin actions to no one, and real names only for themselves', async () => {
