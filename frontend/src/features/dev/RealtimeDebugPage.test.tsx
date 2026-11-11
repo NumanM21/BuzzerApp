@@ -28,12 +28,11 @@ describe('RealtimeDebugPage', () => {
     expect(screen.getByRole('button', { name: 'Buzz' })).toBeInTheDocument();
   });
 
-  it('gives an admin the host commands', async () => {
+  it('gives an admin no buttons: the host screen runs the round', async () => {
     await visit(makeAdminMe());
 
-    expect(await screen.findByRole('button', { name: 'Begin' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Next team' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Reset' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Realtime' })).toBeInTheDocument();
+    expect(screen.queryByRole('button')).not.toBeInTheDocument();
   });
 
   it('sends someone not signed in to the join screen', async () => {

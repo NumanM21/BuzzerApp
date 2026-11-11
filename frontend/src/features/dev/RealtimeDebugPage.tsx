@@ -62,19 +62,13 @@ export const RealtimeDebugPage = observer(function RealtimeDebugPage() {
         <Fact label="Server clock offset">{vm.clockOffset}</Fact>
         <Fact label="Last command">{vm.lastResult ?? 'None yet'}</Fact>
       </dl>
-      <div className={styles.actions}>
-        {vm.actions.map(({ action, label }) => (
-          <Button
-            key={action}
-            className={styles.action}
-            appearance="primary"
-            disabled={vm.isSending}
-            onClick={() => void vm.run(action)}
-          >
-            {label}
+      {vm.canBuzz && (
+        <div className={styles.actions}>
+          <Button className={styles.action} appearance="primary" disabled={vm.isSending} onClick={() => void vm.buzz()}>
+            Buzz
           </Button>
-        ))}
-      </div>
+        </div>
+      )}
       <section>
         <h2 className={styles.heading}>Public snapshot</h2>
         <pre className={styles.snapshot}>{vm.publicSnapshot}</pre>

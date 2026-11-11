@@ -7,30 +7,10 @@ import type { RoundStore } from '@/stores/RoundStore';
 import type { ServerClock } from '@/stores/ServerClock';
 import type { SessionStore } from '@/stores/SessionStore';
 
-/** The round commands this page offers. */
-export type RoundAction = 'beginRound' | 'nextTeam' | 'resetRound' | 'buzz';
-
-export interface RoundActionButton {
-  action: RoundAction;
-  label: string;
-}
-
-const labels: Record<RoundAction, string> = {
-  beginRound: 'Begin',
-  nextTeam: 'Next team',
-  resetRound: 'Reset',
-  buzz: 'Buzz',
-};
-
-const hostActions: readonly RoundActionButton[] = (['beginRound', 'nextTeam', 'resetRound'] as const).map(
-  (action) => ({ action, label: labels[action] }),
-);
-const playerActions: readonly RoundActionButton[] = [{ action: 'buzz', label: labels.buzz }];
-
 /**
- * The dev-only `/dev/realtime` page: everything the live connection knows, as plain text, and the round's commands,
- * so the connection can be checked against the real server before the play and host screens exist. Dev only, so
- * the snapshots are shown raw (the admin one includes every buzz).
+ * The dev-only `/dev/realtime` page: everything the live connection knows, as plain text, plus a Buzz button, so the
+ * connection can be checked against the real server without the play screen. Dev only, so the snapshots are shown
+ * raw (the admin one includes every buzz). The host's commands live on the real host screen (`/admin`).
  */
 export class RealtimeDebugViewModel {
   /** What the last command answered, in words. */
@@ -39,13 +19,13 @@ export class RealtimeDebugViewModel {
   private readonly round: RoundStore;
   private readonly session: SessionStore;
   private readonly clock: ServerClock;
-  private readonly command: Command<[RoundAction]>;
+  private readonly command: Command;
 
   constructor(round: RoundStore, session: SessionStore, clock: ServerClock) {
     this.round = round;
     this.session = session;
     this.clock = clock;
-    this.command = new Command((action: RoundAction) => this.send(action));
+    this.command = new Command(() => this.sendBuzz());
     makeAutoObservable<RealtimeDebugViewModel, 'round' | 'session' | 'clock' | 'command'>(
       this,
       { round: false, session: false, clock: false, command: false },
@@ -91,27 +71,27 @@ export class RealtimeDebugViewModel {
     return asText(this.round.adminSnapshot);
   }
 
-  /** The host's three commands for an admin, the buzzer for a player. */
-  get actions(): readonly RoundActionButton[] {
-    return this.session.isAdmin ? hostActions : playerActions;
+  /** Only a player has a buzzer; an admin runs the round from the host screen. */
+  get canBuzz(): boolean {
+    return !this.session.isAdmin;
   }
 
   get isSending(): boolean {
     return this.command.isRunning;
   }
 
-  async run(action: RoundAction): Promise<void> {
-    await this.command.run(action);
+  async buzz(): Promise<void> {
+    await this.command.run();
   }
 
-  private async send(action: RoundAction): Promise<void> {
-    const result = await this.round[action]();
-    this.setLastResult(action, result);
+  private async sendBuzz(): Promise<void> {
+    const result = await this.round.buzz();
+    this.setLastResult(result);
   }
 
-  private setLastResult(action: RoundAction, result: RoundResult): void {
+  private setLastResult(result: RoundResult): void {
     const outcome = result.success ? 'done' : `${describeRoundError(result.error)} (${result.error})`;
-    this.lastResult = `${labels[action]}: ${outcome}${result.changed ? ', round changed' : ''}`;
+    this.lastResult = `Buzz: ${outcome}${result.changed ? ', round changed' : ''}`;
   }
 }
 
