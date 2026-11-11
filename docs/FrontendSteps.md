@@ -845,7 +845,7 @@ Each step was built in isolation, mostly by smaller models. This step finds what
 - **Lifecycle:** F4's eight rules, re-read against the code and the tests.
 - **Security and privacy:** nothing sent with a buzz or host action; real names shown only where the server sent them; no real names or exports kept in storage; admin screens unreachable for players (guards and the server's 403 both).
 - **Tests:** tests that can pass for the wrong reason, missing error cases, real timers, hard-coded 2026 data, an integration test that repeats what unit tests already prove.
-- **Quality:** readable by a person new to React; names say what things are; no dead code, no leftover dev scaffolding in the production bundle (`/dev/*` routes are dev-only); bundle size sane for a phone on 4G.
+- **Quality:** readable by a person new to React; names say what things are; no dead code, no leftover dev scaffolding in the production bundle (`/dev/*` routes are dev-only); bundle size sane for a phone on 4G. **Known from F7:** the app chunk was 494 kB after F7 (Vite's notice is at 500 kB; the Fluent chunk is separate at 414 kB), and F8 will add more. Decide whether to lazy-load the admin routes (`/admin`, `/admin/scores`, `/admin/event`), which players never need, so a player's phone doesn't download the host screens.
 - **Accessibility and devices:** 360 px, keyboard, focus, text with every colour, reduced motion.
 
 **2. Live walkthrough** (as B9 did for the backend; nothing from it is committed)
