@@ -28,6 +28,7 @@ export class FakeGameConnection extends FakeGameEvents implements GameConnection
   private readonly roundUpdated = new ListenerSet<PublicRoundSnapshot>();
   private readonly adminRoundUpdated = new ListenerSet<AdminRoundSnapshot>();
   private readonly stateChanged = new ListenerSet<ConnectionState>();
+  private readonly attemptFailed = new ListenerSet();
 
   get state(): ConnectionState {
     return this.currentState;
@@ -74,6 +75,15 @@ export class FakeGameConnection extends FakeGameEvents implements GameConnection
 
   onStateChanged(callback: (state: ConnectionState) => void): Unsubscribe {
     return this.stateChanged.add(callback);
+  }
+
+  onAttemptFailed(callback: () => void): Unsubscribe {
+    return this.attemptFailed.add(callback);
+  }
+
+  /** A try to connect (or reconnect) failed; like the real one, it stays as it is and keeps trying. */
+  failAttempt(): void {
+    this.attemptFailed.emit();
   }
 
   /** Forgets the calls so far, to assert only on what a later step did. */

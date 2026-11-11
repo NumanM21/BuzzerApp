@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
+import { ApiError } from '@/api/ApiError';
 import type { Me } from '@/api/types';
 import { flushPromises } from '@/test/flushPromises';
 import { makeAdminMe, makeAdminSnapshot, makeMe, makePublicSnapshot, makeTeams } from '@/test/factories';
@@ -140,6 +141,40 @@ describe('RealtimeCoordinator', () => {
 
       expect(services.session.status).toBe('anonymous');
       expect(connection.calls).toEqual(['start', 'stop']);
+    });
+  });
+
+  describe('a connection attempt fails: the session may be what ended', () => {
+    it('re-reads the session', async () => {
+      const { fakes, connection } = await setup(makeMe());
+      fakes.sessionApi.clearCalls();
+
+      connection.failAttempt();
+      await flushPromises();
+
+      expect(fakes.sessionApi.calls).toEqual(['getMe']);
+    });
+
+    it('signs out (and stops trying) when the session has ended, so the person sees the join screen', async () => {
+      const { fakes, services, connection } = await setup(makeMe());
+      fakes.sessionApi.me = undefined;
+
+      connection.failAttempt();
+      await flushPromises();
+
+      expect(services.session.status).toBe('anonymous');
+      expect(connection.calls).toEqual(['start', 'stop']);
+    });
+
+    it('keeps the person signed in, and keeps trying, when the server is only unreachable', async () => {
+      const { fakes, services, connection } = await setup(makeMe());
+      fakes.sessionApi.failNext(ApiError.network());
+
+      connection.failAttempt();
+      await flushPromises();
+
+      expect(services.session.status).toBe('signedIn');
+      expect(connection.calls).toEqual(['start']);
     });
   });
 

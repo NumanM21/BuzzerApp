@@ -18,6 +18,10 @@ import type { PageVisibility } from './pageVisibility';
  * - **After every (re)connect, re-read the session.** The session may have ended while the phone was away (the
  *   session store then signs out and the guards show the join screen), or the role may have changed. The stores
  *   reload their own data on the same event (`onReconnected`).
+ * - **A failed try, ask why.** The connection retries for ever, which is right while the server is away and wrong
+ *   when the session has ended (the server lost its keys in a restart, or the cookie ran out): then every try is
+ *   refused and the person would watch "Reconnecting…" all night. So each failed try re-reads the session; if it
+ *   has ended, the session store signs out, this stops the connection, and the guards show the join screen.
  * - **Back in view, catch up.** A phone that wakes up retries a dropped connection at once instead of waiting for
  *   the next retry, and re-reads the session.
  *
@@ -54,6 +58,7 @@ export class RealtimeCoordinator {
           this.refreshSession();
         }
       }),
+      this.connection.onAttemptFailed(() => this.refreshSession()),
       this.visibility.onVisible(() => this.becameVisible()),
     ];
   }
