@@ -177,7 +177,7 @@ describe('SessionStore', () => {
 
       await expect(store.signOut()).rejects.toBe(networkError);
       expect(store.status).toBe('signedIn');
-      expect(store.me).toBeDefined();
+      expect(store.me).toEqual(api.me);
     });
   });
 

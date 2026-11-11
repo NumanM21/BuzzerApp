@@ -50,7 +50,7 @@ describe('EventStore', () => {
 
     expect(store.isSettled).toBe(true);
     await retry;
-    expect(store.event).toBeDefined();
+    expect(store.event).toEqual(api.event);
     expect(store.error).toBeUndefined();
   });
 

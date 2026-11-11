@@ -348,7 +348,7 @@ describe('JoinViewModel: checking the form before it is sent', () => {
     vm.setRealName('Real Name');
 
     expect(vm.fieldErrors.realName).toBeUndefined();
-    expect(vm.fieldErrors.pin).toBeDefined();
+    expect(vm.fieldErrors.pin).toBe('The PIN is exactly 4 digits');
   });
 });
 
