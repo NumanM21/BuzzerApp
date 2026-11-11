@@ -9,6 +9,13 @@ export interface TeamLook {
   iconKey: string;
 }
 
+/** The look of every team in the teams list, by team id: what `buildQueueRows` and the buzzer's colour are read from. */
+export function teamLooksById(
+  teams: readonly { id: number; colorKey: string; iconKey: string }[],
+): ReadonlyMap<number, TeamLook> {
+  return new Map(teams.map((team) => [team.id, { colorKey: team.colorKey, iconKey: team.iconKey }]));
+}
+
 /**
  * The key for a team the teams list doesn't have (deleted since Begin, or not loaded yet). It matches no pack's
  * key (they must be 1 to 50 characters), so the theme gives the team its fallback colour and icon.

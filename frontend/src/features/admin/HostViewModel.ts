@@ -7,7 +7,7 @@ import {
   hostActionsAllowedIn,
   type HostAction,
 } from '@/domain/hostRound';
-import { buildQueueRows, type QueueRow, type TeamLook } from '@/domain/queueRows';
+import { buildQueueRows, teamLooksById, type QueueRow, type TeamLook } from '@/domain/queueRows';
 import type { RoundPhase } from '@/domain/round';
 import { describeRoundError } from '@/domain/roundErrors';
 import { Command } from '@/mvvm/Command';
@@ -184,8 +184,7 @@ export class HostViewModel {
   }
 
   private get teamLooks(): ReadonlyMap<number, TeamLook> {
-    const teams = this.teams.teams.value ?? [];
-    return new Map(teams.map((team) => [team.id, { colorKey: team.colorKey, iconKey: team.iconKey }]));
+    return teamLooksById(this.teams.teams.value ?? []);
   }
 
   // Runs from a timer, outside any action; an auto-bound method of a `makeAutoObservable` class is one itself.

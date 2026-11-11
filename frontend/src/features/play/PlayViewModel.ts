@@ -2,7 +2,7 @@ import { makeAutoObservable, observableRef, runInAction } from 'mobx';
 import type { BuzzerVisualState } from '@/domain/buzzer';
 import { getBuzzerState } from '@/domain/buzzerState';
 import { connectionNoticeFor } from '@/domain/connectionNotice';
-import { buildQueueRows, type QueueRow, type TeamLook } from '@/domain/queueRows';
+import { buildQueueRows, teamLooksById, type QueueRow, type TeamLook } from '@/domain/queueRows';
 import { describeRoundError, isUndeliveredRoundError } from '@/domain/roundErrors';
 import type { RoundStore } from '@/stores/RoundStore';
 import type { SessionStore } from '@/stores/SessionStore';
@@ -141,7 +141,6 @@ export class PlayViewModel {
   }
 
   private get teamLooks(): ReadonlyMap<number, TeamLook> {
-    const teams = this.teams.teams.value ?? [];
-    return new Map(teams.map((team) => [team.id, { colorKey: team.colorKey, iconKey: team.iconKey }]));
+    return teamLooksById(this.teams.teams.value ?? []);
   }
 }
