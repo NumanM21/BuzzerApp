@@ -1,4 +1,5 @@
 import { screen } from '@testing-library/react';
+import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { renderWithApp } from '@/test/renderWithApp';
 import { FormDialog, type FormDialogProps } from './FormDialog';
@@ -43,10 +44,37 @@ describe('FormDialog', () => {
     expect(onCancel).toHaveBeenCalledTimes(2);
   });
 
-  it('disables the confirm button while submitting, so a double tap sends once', () => {
-    renderDialog({ isSubmitting: true });
+  it('holds the confirm button while submitting, so a double tap sends once', async () => {
+    const { user, onSubmit } = renderDialog({ isSubmitting: true });
+    const save = screen.getByRole('button', { name: 'Save' });
 
-    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+    await user.click(save);
+    await user.type(screen.getByLabelText('Name'), 'x{Enter}');
+
+    expect(save).toHaveAttribute('aria-disabled', 'true');
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  // A button that becomes truly `disabled` drops the keyboard focus it holds. The dialog then closes with the focus
+  // already lost, and it can't be returned to the button that opened the dialog.
+  it('keeps the keyboard focus on the confirm button while submitting', async () => {
+    // Submitting starts when Save is pressed and never ends, as while a request is on its way.
+    function SubmittingDialog() {
+      const [isSubmitting, setSubmitting] = useState(false);
+      return (
+        <FormDialog open title="Rename" submitLabel="Save" isSubmitting={isSubmitting} onSubmit={() => setSubmitting(true)} onCancel={() => {}}>
+          <p>Sure?</p>
+        </FormDialog>
+      );
+    }
+    const { user } = renderWithApp(<SubmittingDialog />);
+    const save = screen.getByRole('button', { name: 'Save' });
+
+    await user.click(save);
+
+    expect(save).toHaveAttribute('aria-disabled', 'true');
+    expect(save).not.toBeDisabled();
+    expect(save).toHaveFocus();
   });
 
   it('shows the note and the error as text', () => {
