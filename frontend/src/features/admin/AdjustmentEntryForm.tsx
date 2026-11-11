@@ -11,10 +11,12 @@ const useStyles = makeStyles({
     flexDirection: 'column',
     gap: tokens.spacingVerticalM,
   },
-  // The two number boxes sit side by side on a phone; each is narrow enough for a few digits.
+  // The two number boxes sit side by side on a phone; each is narrow enough for a few digits. `minmax(0, 1fr)`, not
+  // `1fr`: a plain `1fr` column never gets narrower than its content, and a text box asks for about twenty
+  // characters of width, so two of them pushed the page wider than a 360 px phone.
   numbers: {
     display: 'grid',
-    gridTemplateColumns: '1fr 1fr',
+    gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)',
     gap: tokens.spacingHorizontalM,
   },
   select: {
@@ -31,7 +33,7 @@ const useStyles = makeStyles({
   },
   buttons: {
     display: 'grid',
-    gridTemplateColumns: '1fr 1fr',
+    gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)',
     gap: tokens.spacingHorizontalM,
   },
   button: {
