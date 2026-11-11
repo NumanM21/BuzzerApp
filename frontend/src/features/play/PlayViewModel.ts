@@ -1,18 +1,12 @@
 import { makeAutoObservable, observableRef, runInAction } from 'mobx';
 import type { BuzzerVisualState } from '@/domain/buzzer';
 import { getBuzzerState } from '@/domain/buzzerState';
+import { connectionNoticeFor } from '@/domain/connectionNotice';
 import { buildQueueRows, type QueueRow, type TeamLook } from '@/domain/queueRows';
 import { describeRoundError, isUndeliveredRoundError } from '@/domain/roundErrors';
-import type { ConnectionState } from '@/realtime/types';
 import type { RoundStore } from '@/stores/RoundStore';
 import type { SessionStore } from '@/stores/SessionStore';
 import type { TeamsStore } from '@/stores/TeamsStore';
-
-const connectionNotices: Record<Exclude<ConnectionState, 'connected'>, string> = {
-  connecting: 'Connecting to the game…',
-  reconnecting: 'Connection lost. Reconnecting…',
-  disconnected: 'Not connected to the game',
-};
 
 /** A refused or failed buzz, tied to the round it happened in. */
 interface BuzzFailure {
@@ -88,8 +82,7 @@ export class PlayViewModel {
 
   /** Why the person can't rely on what they see, when the connection isn't up. The last snapshot stays on screen. */
   get connectionNotice(): string | undefined {
-    const state = this.round.connectionState;
-    return state === 'connected' ? undefined : connectionNotices[state];
+    return connectionNoticeFor(this.round.connectionState);
   }
 
   /**
