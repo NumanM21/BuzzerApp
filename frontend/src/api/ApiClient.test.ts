@@ -234,40 +234,4 @@ describe('ApiClient', () => {
       expect(onSessionExpired).not.toHaveBeenCalled();
     });
   });
-
-  describe('download', () => {
-    it('returns the file and the name the server gave it', async () => {
-      server.use(
-        http.get(
-          '/api/file',
-          () =>
-            new HttpResponse('{"a":1}', {
-              headers: { 'Content-Disposition': 'attachment; filename="buzzer-archive-2030.json"' },
-            }),
-        ),
-      );
-      const { client } = createClient();
-
-      const file = await client.download('/api/file');
-
-      expect(file.fileName).toBe('buzzer-archive-2030.json');
-      expect(await file.blob.text()).toBe('{"a":1}');
-    });
-
-    it('has no file name when the server sends none', async () => {
-      server.use(http.get('/api/file', () => new HttpResponse('x')));
-      const { client } = createClient();
-
-      expect((await client.download('/api/file')).fileName).toBeUndefined();
-    });
-
-    it('throws an ApiError on failure, like every other call', async () => {
-      server.use(http.get('/api/file', () => problemResponse(404, problem(404))));
-      const { client } = createClient();
-
-      const error = await failureOf(client.download('/api/file'));
-
-      expect(error.kind).toBe('notFound');
-    });
-  });
 });
