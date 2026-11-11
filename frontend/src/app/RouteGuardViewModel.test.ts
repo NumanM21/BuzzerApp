@@ -12,7 +12,7 @@ import { RouteGuardViewModel } from './RouteGuardViewModel';
 function create(access: RouteAccess) {
   const fakes = createTestFakes();
   const services = createTestServices({}, fakes);
-  return { vm: new RouteGuardViewModel(services.session, access), fakes, services };
+  return { vm: new RouteGuardViewModel(services.session, services.event, access), fakes, services };
 }
 
 describe('RouteGuardViewModel', () => {
@@ -74,6 +74,34 @@ describe('RouteGuardViewModel', () => {
 
     expect(vm.decision).toEqual({ kind: 'allow' });
     expect(vm.unreachableMessage).toBeUndefined();
+  });
+
+  it('retries the event too when it could not be loaded, so the app gets its name and theme without a reload', async () => {
+    const { vm, fakes, services } = create('signedIn');
+    fakes.sessionApi.me = makeMe();
+    // The server is down when the app opens: both start-up calls fail.
+    fakes.eventApi.failNext(ApiError.network());
+    await services.event.ensureLoaded();
+    fakes.sessionApi.failNext(ApiError.network());
+    await services.session.restore();
+    expect(services.event.event).toBeUndefined();
+
+    await vm.retry();
+
+    expect(services.event.event).toEqual(fakes.eventApi.event);
+    expect(vm.decision).toEqual({ kind: 'allow' });
+  });
+
+  it('does not ask for the event again when it is already known', async () => {
+    const { vm, fakes, services } = create('signedIn');
+    await services.event.ensureLoaded();
+    fakes.sessionApi.failNext(ApiError.network());
+    await services.session.restore();
+    fakes.eventApi.clearCalls();
+
+    await vm.retry();
+
+    expect(fakes.eventApi.calls).toEqual([]);
   });
 
   it('shows the retry as running, and ignores a second tap meanwhile', async () => {
