@@ -3,7 +3,7 @@
 > **Audience:** AI coding assistants (Claude Code) and the developer.
 > **Purpose:** build a working, demo-able MVP fast, on foundations that can grow over several yearly events.
 > `../OriginalFullPlan.md` (outside the repo) is the older, learning-focused plan. Keep it for reference; **this file wins where they disagree**.
-> Last updated: 10 Nov 2026 (v2.5: Milestone F planned in `docs/FrontendSteps.md`; frontend is MVVM with MobX, TanStack Query dropped (D30, D34); plain web app with no service worker (D1, R1); admins create and delete teams in the UI (D17); frontend test strategy (D32); F3/F4 swapped and F9 added in §10. The reasons are in `docs/DecisionLog.md`. v2.4: Milestone B finished; B9 review folded in: §2 rewritten, feature structure in §5, seeding and migrations in §7.2, `/me` in §8.2, D24 and D32, Azure checklist in R2. v2.3: Q4 resolved (dark); backend step briefs added in `docs/BackendSteps.md`; round snapshots get `Version`, `TakeEndedRecord()` added). **Status: Milestone B (backend) done — start at F0.**
+> Last updated: 11 Nov 2026 (v2.6: Milestone F finished; F9 review folded in: a registration notifies (§8.5), caching headers and the page title in R1, O10 and O11 in §11, §2 status. v2.5, 10 Nov 2026: Milestone F planned in `docs/FrontendSteps.md`; frontend is MVVM with MobX, TanStack Query dropped (D30, D34); plain web app with no service worker (D1, R1); admins create and delete teams in the UI (D17); frontend test strategy (D32); F3/F4 swapped and F9 added in §10. The reasons are in `docs/DecisionLog.md`. v2.4: Milestone B finished; B9 review folded in: §2 rewritten, feature structure in §5, seeding and migrations in §7.2, `/me` in §8.2, D24 and D32, Azure checklist in R2. v2.3: Q4 resolved (dark); backend step briefs added in `docs/BackendSteps.md`; round snapshots get `Version`, `TakeEndedRecord()` added). **Status: Milestones B (backend) and F (frontend) are done. Next: the developer's hands-on pass from `docs/ManualTestChecklist.md`, then Milestone R.**
 
 ---
 
@@ -60,14 +60,18 @@ BuzzerApp/                              ← repo root (GitHub, public)
 ├─ docs/BackendSteps.md                 ← what B0–B9 built (history; frontend sessions don't read it)
 ├─ docs/FrontendSteps.md                ← briefs for F0–F9, shared frontend rules, API quick reference
 ├─ docs/DecisionLog.md                  ← dated history of plan changes and why (for the developer)
+├─ docs/ManualTestChecklist.md          ← the developer's hands-on walkthrough before deployment
+├─ docs/playwright-draft/               ← F9's live-walkthrough script, a draft for O10; nothing runs it
 ├─ backend/
 │  ├─ src/BuzzerApp.Core/               ← Domain/, Rounds/, Scoring/, Archive/, Security/; no package references
 │  ├─ src/BuzzerApp.Infrastructure/     ← Persistence/ (DbContext, Configurations, Migrations, DbErrors), Seeding/, Security/
 │  ├─ src/BuzzerApp.Api/                ← Features/<Feature>/ (contracts, service, endpoints), Realtime/, Common/
 │  ├─ tests/BuzzerApp.Core.Tests/       ← xUnit v3, pure logic
 │  └─ tests/BuzzerApp.Api.Tests/        ← unit tests for Api pieces + integration tests on a Testcontainers PostgreSQL
-└─ frontend/                            ← Vite 8 + React 19 + TS 6 template, untouched: Milestone F starts here
+└─ frontend/                            ← the React app (Milestone F, done): src/ layout in §10 and CLAUDE.md
 ```
+
+**Frontend status (11 Nov 2026):** every step F0–F9 is done (details and deviations in `docs/FrontendSteps.md`; **its F9 DONE note lists what the review found and fixed**). Lint, build and 1356 tests; the tests need neither Docker nor the backend. F9 also ran the finished app live (the API in Production mode serving the built app, six browsers at phone size, three team counts, both theme packs, an API restart mid-round). Not yet done: the developer's hands-on pass on real phones.
 
 **Backend status:** every step B0–B9 is done (details and deviations in `docs/BackendSteps.md`; **its B9 section is the summary of the current design**). The whole backend test run takes about 30 seconds and needs Docker. B9 also ran the API live in Production mode with a scripted client (36 players, 14 SignalR connections, two sessions, a restart).
 
@@ -575,7 +579,7 @@ frontend/src/
 
 | Step | Do |
 |---|---|
-| R1 | Web-app polish, **no service worker** (D1; changed 10 Nov 2026 from "PWA basics"): a web manifest (name, icons from the pack, theme colour) so "Add to Home Screen" looks right; Screen Wake Lock on `/play` and `/admin` (re-request it when the tab becomes visible again); check that `index.html` is served so a redeploy reaches phones without a stale copy |
+| R1 | Web-app polish, **no service worker** (D1; changed 10 Nov 2026 from "PWA basics"): a web manifest (name, icons from the pack, theme colour) so "Add to Home Screen" looks right; Screen Wake Lock on `/play` and `/admin` (re-request it when the tab becomes visible again); check that `index.html` is served so a redeploy reaches phones without a stale copy. **From F9:** today the API serves it through `UseStaticFiles()` with no `Cache-Control`, so a browser may reuse an old copy and ask for script files that no longer exist: send `Cache-Control: no-cache` for `index.html` and a long `max-age` with `immutable` for `/assets/*` (their names carry a hash), in `HostingSetup`. Also: the tab title stays "Buzzer" (the event's name could replace it), and the splash before the theme loads is unstyled, so a dark theme is preceded by a moment of white |
 | R2 | Hosting: Azure App Service **B1** for the event weekend (free F1 caps WebSockets at 5) + Azure Database for PostgreSQL Flexible Server (smallest burstable). Config/secrets via App Settings (`ConnectionStrings__BuzzerDb`, `Event__JoinCode`, `Admins__0__RealName` / `__DisplayName` / `__Pin`). **Checklist from B9 (each was checked by running the API in Production mode):** (1) `Database__MigrateOnStartup=true`, or the first start fails because no tables exist. (2) Turn on **HTTPS Only** in the App Service: TLS ends at Azure's front end, the app sees plain http and cannot redirect by itself (`UseHttpsRedirection` finds no https port and does nothing). The auth cookie is `Secure` in Production, so it only works over https. (3) `ASPNETCORE_FORWARDEDHEADERS_ENABLED=true`, so the per-IP join limit sees phones' addresses instead of Azure's proxy. (4) **Exactly one instance**, no scale-out: the live round and the sign-in throttle are in memory. (5) WebSockets on. (6) After a restart, check a phone is still signed in (Data Protection keys must persist; they do on a code-deployed App Service, not necessarily in a custom container). (7) `/healthz` is the health probe; it answers over http and https |
 | R3 | Build: `npm run build` → copy `dist` into Api `wwwroot` → `dotnet publish`. Optional GitHub Actions deploy job |
 | R4 | Rehearsal with 5+ real phones: Wi-Fi and 4G, lock/unlock mid-round, refresh, sign in on another browser, two admins, near-simultaneous buzzes, server restart mid-game |
@@ -598,6 +602,7 @@ frontend/src/
 | O5 | **Store apps** | Wrap the React app with Capacitor. Apple $99/yr, Google $25 once |
 | O9 | **PWA install / offline** | `vite-plugin-pwa` with a service worker. **Cache the app shell only, never `/api` or `/hubs`**, with auto-update. Left out of the MVP on purpose (D1): test thoroughly before an event if added |
 | O10 | **Playwright end-to-end tests** | Start from the backlog in `docs/FrontendSteps.md` Appendix B (it names the five to automate first) and from the draft script in `docs/playwright-draft/` (F9's live walkthrough: a full evening on six devices, 106 checks; a script, not yet a suite). Needs the API and a database in CI |
+| O11 | **Export without finalizing again** | Today the Download button appears only after Finalize in the same visit to the Event screen (the event id comes from the finalize answer). Needs the server to tell an admin that an archive exists (the event id on `GET /api/event`, or a small admin `GET`) and a change on the Event screen. Left out of the MVP by decision (11 Nov 2026): finalizing again is harmless |
 
 **Deadline note:** MVP + O0 + one more by 18 Dec is realistic. Treat the rest as 2027 work.
 
