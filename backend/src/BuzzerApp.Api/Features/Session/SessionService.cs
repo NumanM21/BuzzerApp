@@ -1,6 +1,7 @@
 using BuzzerApp.Api.Common;
 using BuzzerApp.Api.Features.Players;
 using BuzzerApp.Api.Features.Teams;
+using BuzzerApp.Api.Realtime;
 using BuzzerApp.Core.Domain;
 using BuzzerApp.Core.Security;
 using BuzzerApp.Infrastructure.Persistence;
@@ -20,6 +21,7 @@ public sealed class SessionService(
     IPinHasher pinHasher,
     PinDecoy decoy,
     SignInThrottle throttle,
+    IGameNotifier notifier,
     TimeProvider time)
 {
     // One message for "no such player" and "wrong PIN" (and a wrong join code), so the response can't be used to find real names.
@@ -76,6 +78,9 @@ public sealed class SessionService(
             return NameTaken(PlayerNames.FromFailedSave(ex));
         }
 
+        // For everyone already in: the newcomer is a new name on their Teams screen and in the hosts' lists. Without
+        // it nobody sees who joined until something else changes. (The newcomer's own phone isn't connected yet.)
+        await notifier.TeamsAndScoresChangedAsync();
         return new SessionPlayer(player, ToMe(player, team.Name));
     }
 
