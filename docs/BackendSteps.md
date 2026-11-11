@@ -512,3 +512,11 @@ The developer finds the Api suite **far too slow** (B7's full run did not finish
 ### 4. Deliverable
 
 A short written report (in the PR description or the DONE note here): what was reviewed, every finding with its severity and what was done about it, what the walkthrough covered, and anything deliberately left. Mark the step done as in the shared rules (`Mark B9 done in BackendSteps`).
+
+---
+
+## Changes after B9
+
+Backend changes made by later steps, newest last. Each is small; the reason is in `docs/DecisionLog.md`.
+
+- **F9, 11 Nov 2026: a registration notifies.** `SessionService.RegisterAsync` now calls `notifier.TeamsAndScoresChangedAsync()` after the save, like every other write to teams and players (branch `frontend-f9`). Before, registration was the one write that sent nothing, so nobody saw a newcomer until something else changed. Sign-in sends nothing: it changes nothing anyone else can see. Tests: two cases in `WriteNotificationTests` (a registration notifies once; rejected registrations and every sign-in notify nobody). 156 Core and 383 Api tests pass.
