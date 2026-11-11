@@ -5,6 +5,7 @@ import { ThemeRoot, ThemeSplash } from '@/theme/ThemeRoot';
 import { AppServicesProvider } from './AppServicesProvider';
 import type { AppServices } from './AppServices';
 import { AppViewModel } from './AppViewModel';
+import { AppErrorBoundary } from './errorBoundaries';
 import { useViewModel } from './useViewModel';
 
 interface AppProps {
@@ -14,9 +15,12 @@ interface AppProps {
 
 export function App({ services, router }: AppProps) {
   return (
-    <AppServicesProvider services={services}>
-      <ThemedRouter router={router} />
-    </AppServicesProvider>
+    // Outermost, so it also catches what fails before any route exists: the theme pack not arriving.
+    <AppErrorBoundary>
+      <AppServicesProvider services={services}>
+        <ThemedRouter router={router} />
+      </AppServicesProvider>
+    </AppErrorBoundary>
   );
 }
 

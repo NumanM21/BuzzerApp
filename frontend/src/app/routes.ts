@@ -5,6 +5,7 @@ import { PlayPage } from '@/features/play/PlayPage';
 import { ScoresPage } from '@/features/scores/ScoresPage';
 import { ShellLayout } from '@/features/shell/ShellLayout';
 import { TeamsPage } from '@/features/teams/TeamsPage';
+import { RouteErrorScreen } from './errorBoundaries';
 import { AdminGuard, AnonymousOnlyGuard, PlayerGuard, SignedInGuard, StartRedirect } from './guards';
 import { LazyAdminEventPage, LazyAdminPage, LazyAdminScoresPage } from './lazyAdminPages';
 
@@ -21,15 +22,22 @@ export function createAppRoutes(): RouteObject[] {
         {
           Component: ShellLayout,
           children: [
-            { path: appPaths.teams, Component: TeamsPage },
-            { path: appPaths.scores, Component: ScoresPage },
-            { Component: PlayerGuard, children: [{ path: appPaths.play, Component: PlayPage }] },
             {
-              Component: AdminGuard,
+              // A screen that fails to draw (its file didn't arrive) is replaced by the error screen here, inside
+              // the shell, so the header and navigation stay and the person can also just go to another screen.
+              ErrorBoundary: RouteErrorScreen,
               children: [
-                { path: appPaths.adminHost, Component: LazyAdminPage },
-                { path: appPaths.adminScores, Component: LazyAdminScoresPage },
-                { path: appPaths.adminEvent, Component: LazyAdminEventPage },
+                { path: appPaths.teams, Component: TeamsPage },
+                { path: appPaths.scores, Component: ScoresPage },
+                { Component: PlayerGuard, children: [{ path: appPaths.play, Component: PlayPage }] },
+                {
+                  Component: AdminGuard,
+                  children: [
+                    { path: appPaths.adminHost, Component: LazyAdminPage },
+                    { path: appPaths.adminScores, Component: LazyAdminScoresPage },
+                    { path: appPaths.adminEvent, Component: LazyAdminEventPage },
+                  ],
+                },
               ],
             },
           ],
@@ -63,7 +71,9 @@ export function createAppRoutes(): RouteObject[] {
   // Last, and matched only when nothing above does: `/` and every address the app doesn't have go to the start page.
   routes.push({ path: '*', Component: StartRedirect });
 
-  return routes;
+  // One parent for everything, so that whatever throws while drawing (the shell, a guard, the join screen) shows the
+  // app's error screen and never the router's own developer page.
+  return [{ ErrorBoundary: RouteErrorScreen, children: routes }];
 }
 
 export function createAppRouter(): DataRouter {
