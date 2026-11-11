@@ -1,7 +1,7 @@
 import { Button, Field, Input, MessageBar, MessageBarBody, Select, makeStyles, tokens } from '@fluentui/react-components';
 import { observer } from 'mobx-react-lite';
 import { appTokens } from '@/theme/appTokens';
-import { useTextBoxStyles } from '@/components/useTextBoxStyles';
+import { useFieldControlStyles } from '@/components/useFieldControlStyles';
 import type { AdjustmentEntryViewModel } from './AdjustmentEntryViewModel';
 import { TAP_TARGET } from '@/components/sizes';
 
@@ -14,18 +14,11 @@ const useStyles = makeStyles({
   // The two number boxes sit side by side on a phone; each is narrow enough for a few digits. `minmax(0, 1fr)`, not
   // `1fr`: a plain `1fr` column never gets narrower than its content, so a long label or error under one box would
   // make the halves unequal or push the page wider than a 360 px phone. (The boxes themselves are allowed to shrink
-  // by `useTextBoxStyles`; both are needed.)
+  // by `useFieldControlStyles`; both are needed.)
   numbers: {
     display: 'grid',
     gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)',
     gap: tokens.spacingHorizontalM,
-  },
-  select: {
-    width: '100%',
-    maxWidth: 'none',
-  },
-  selectControl: {
-    minHeight: TAP_TARGET,
   },
   preview: {
     margin: 0,
@@ -47,7 +40,7 @@ const useStyles = makeStyles({
 /** Pick a team or a player, an amount and a multiplier; the buttons show the result they will apply. */
 export const AdjustmentEntryForm = observer(function AdjustmentEntryForm({ vm }: { vm: AdjustmentEntryViewModel }) {
   const styles = useStyles();
-  const textBox = useTextBoxStyles();
+  const controls = useFieldControlStyles();
   const { fieldErrors, formError, isSubmitting } = vm.form;
 
   return (
@@ -66,8 +59,8 @@ export const AdjustmentEntryForm = observer(function AdjustmentEntryForm({ vm }:
         hint={vm.targetNote}
       >
         <Select
-          className={styles.select}
-          select={{ className: styles.selectControl }}
+          className={controls.select}
+          select={{ className: controls.selectControl }}
           value={vm.selectedTargetKey}
           onChange={(_, data) => vm.selectTarget(data.value)}
         >
@@ -92,7 +85,7 @@ export const AdjustmentEntryForm = observer(function AdjustmentEntryForm({ vm }:
       <div className={styles.numbers}>
         <Field label="Points" validationMessage={fieldErrors.amount} validationState={fieldErrors.amount ? 'error' : 'none'}>
           <Input
-            className={textBox.textBox}
+            className={controls.textBox}
             value={vm.amount}
             inputMode="numeric"
             autoComplete="off"
@@ -105,7 +98,7 @@ export const AdjustmentEntryForm = observer(function AdjustmentEntryForm({ vm }:
           validationState={fieldErrors.multiplier ? 'error' : 'none'}
         >
           <Input
-            className={textBox.textBox}
+            className={controls.textBox}
             value={vm.multiplier}
             inputMode="numeric"
             autoComplete="off"
@@ -120,7 +113,7 @@ export const AdjustmentEntryForm = observer(function AdjustmentEntryForm({ vm }:
         validationState={fieldErrors.reason ? 'error' : 'none'}
       >
         <Input
-          className={textBox.textBox}
+          className={controls.textBox}
           value={vm.reason}
           autoComplete="off"
           onChange={(_, data) => vm.setReason(data.value)}
