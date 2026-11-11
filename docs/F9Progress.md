@@ -2,15 +2,36 @@
 
 > **Audience:** the developer, and the AI session that continues F9.
 > F9 runs over more than one session. This file says where it has got to. It is deleted when F9 is marked done (its findings move into the F9 DONE note in `docs/FrontendSteps.md`).
-> To continue: "Read CLAUDE.md, the F9 brief in docs/FrontendSteps.md and docs/F9Progress.md, then continue F9."
+> To continue: read "Where it stopped" below first. It names the exact next action.
+
+## Where it stopped (11 Nov 2026, end of the third session)
+
+**State of the repo:** branch `frontend-f9`, last code commit `Keep the keyboard focus through a dialog's submit`, nothing uncommitted. `npm run lint`, `npm run build` and `npm test` (1355 tests in 89 files) all pass. Nothing is pushed.
+
+**Exact place:** part 2 (the live walkthrough), about half way. The review and its fixes (part 1) are finished. The walkthrough has run three times with the arcade pack and six teams; the last run passed 47 of 57 checks. The ten failures were two real bugs (M5 and M6 below, both fixed and committed since, **not yet re-checked in a browser**) and three mistakes in the throwaway script (listed under "Walkthrough set-up").
+
+**What to do next, in order:**
+
+1. **Re-check M5 and M6 in a real browser.** Build the frontend, copy `frontend/dist` into the scratch API's `wwwroot` (the copy there is older than both fixes), then run `probe-wide.mjs` (expect: no screen wider than 360 px, Scores included) and `probe-dialog4.mjs` (expect: after Save / Rename / Add team the focus is on the button that opened the dialog, not on `BODY`).
+2. **Fix the three script mistakes in `walk.mjs` / `lib.mjs`** and run `node walk.mjs arcade6` until every check passes or each failure is explained. Look at the screenshots in `walk/shots/` for a 360 px visual check.
+3. **The other passes the brief asks for:** another team count (3 and 8, by editing the **scratch copy's** `api/appsettings.json`, never the repo's), the `default` pack, and once through the Vite dev server (it proxies to port 5283, so start the scratch API on 5283 for that pass; also check M1 there: open the app with the API stopped, start it, press "Try again", and the event name and theme arrive).
+4. **Part 3:** rework `docs/ManualTestChecklist.md` into one start-to-finish session (read its "For AI workers" section first): set-up at the top, duplicates merged, rows that F9 made wrong removed, rows added for H1, H2, M2, M5, M6 and H3, section 7 "Whole-evening run" filled, rows the live walkthrough proved marked as such. Tick nothing. Commit as `Add F9 manual checks`.
+5. **Part 4, wrap up:**
+   - Ask the developer, **one question at a time**: first H3 (may the backend send the change messages after a registration?), then M4 (should Export work without Finalize first?). Both are backend changes, so the answer may be "do it in a backend step"; record whichever is decided.
+   - Tell the developer the two things that are a matter of taste (see "Seen, not changed").
+   - Put Appendix B of `docs/FrontendSteps.md` in priority order as the Playwright backlog, adding H1, H2, M2, M5 and M6 (none can be shown in jsdom).
+   - Update `docs/PlanMVP.md`, `CLAUDE.md` and `docs/FrontendSteps.md` (the F9 DONE note with the findings below, deviations, and what was not checked by hand; the steps table; the "start at" line), and add a `docs/DecisionLog.md` entry.
+   - Delete this file. Last commit: `Mark F9 done in FrontendSteps`.
+6. **Clean up:** `docker rm -f buzzer-f9-uat`; make sure no `dotnet BuzzerApp.Api.dll` is left on port 5290 or 5283; confirm `git status` shows nothing from the walkthrough.
+7. **Finish** with a plain-words summary for the developer: what was fixed and why, and which manual checks were not run.
 
 ## Order of work
 
 | # | Part of the brief | What it is | Status |
 |---|---|---|---|
 | 1a | 1. Review | Read the whole frontend against the shared rules; write the findings below, by severity | **done** (11 Nov 2026) |
-| 1b | 1. Review | Fix the findings in small commits, each with a test that failed first where one is possible | **done** except M4, which waits for the developer. 1347 tests, lint and build clean |
-| 2 | 2. Live walkthrough | Separate PostgreSQL container, API in Production mode serving the built frontend, real browsers driven by a throwaway script; then once through the Vite dev server; another team count; the `default` pack | **in progress.** Set up and running (see "Walkthrough set-up"); first runs found H2 and H3 |
+| 1b | 1. Review | Fix the findings in small commits, each with a test that failed first where one is possible | **done** except H3 and M4, which wait for the developer. 1355 tests, lint and build clean |
+| 2 | 2. Live walkthrough | Separate PostgreSQL container, API in Production mode serving the built frontend, real browsers driven by a throwaway script; then once through the Vite dev server; another team count; the `default` pack | **in progress**, about half way (see "Where it stopped"). Found H2, H3, M5 and M6 so far |
 | 3 | 3. Manual walkthrough | Turn `docs/ManualTestChecklist.md` into one start-to-finish session; fill section 7; mark what the live walkthrough proved | not started |
 | 4 | 4. Wrap up | Export-before-finalize decision (the developer's); deployment notes for Milestone R; Appendix B in priority order; PlanMVP / CLAUDE.md / DecisionLog; mark F9 done | not started |
 
@@ -35,6 +56,8 @@ Severity: **High** = would hurt on event day. **Medium** = wrong behaviour in a 
 | M2 | Medium | **A session that ends while the phone is connected leaves the player on "Reconnecting…" for good.** The hub refuses the reconnect (401), the connection retries for ever, and nothing asks `/me` until the phone is locked and unlocked or a screen makes a REST call (`/play` makes none). F4 recorded this as a known limit. It matters after a server restart that loses the cookie keys (PlanMVP R2, item 6) | `RealtimeCoordinator` re-reads the session when a connection attempt fails; a 401 then signs the person out and the guards show the join screen | **fixed** (`GameConnection.onAttemptFailed`, `reconnectPolicy`, `RealtimeCoordinator`) |
 | M3 | Medium | **`JoinViewModel` has its own copy of "server error → field messages"** (`showServerFieldErrors`, `isJoinField`, `edited`), the same rule as `mvvm/FormSubmission.ts` (`readFailure`, `fieldEdited`). Named in the brief | **fixed**: the join screen now reads a failure with the shared `readFailure` (its own `showServerFieldErrors` and `isJoinField` are gone). It keeps its own submit cycle rather than a `FormSubmission`, on purpose: a failure there is more than a sentence (a rate-limit countdown that outlives edits and holds the button; "Sign in instead" on a taken real name), and `FormSubmission` would need three members only this screen uses. The reason is in the class comment |
 | M4 | Medium | **Export needs a Finalize in the same visit** (F8's open item). Not a code fault: the event id is only in the finalize answer | The developer decides (see below) | waiting |
+| M5 | Medium | **The admin's Scores screen is wider than a phone.** Found by the live walkthrough. At 360 px the page was 415 px wide: it scrolled sideways and the bottom navigation hung partly off the screen. The "Points / Multiplier" row was a grid of two `1fr` columns, and a `1fr` column never shrinks below its content's minimum width, which for a text box is its default size | The columns are `minmax(0, 1fr)` | **fixed** (`AdjustmentEntryForm`). Not re-checked in a browser yet. jsdom has no layout, so there is no automated test: Appendix B and the manual checklist |
+| M6 | Medium | **After a dialog is submitted (not cancelled), the keyboard focus falls to the page body.** Found by the live walkthrough; the rest of H2. While the request runs the confirm button became `disabled`, and a disabled button drops the focus it holds, so when the dialog closed there was no focus to hand back to the button that opened it | The confirm button is held with `disabledFocusable` (it keeps the focus and reads as unavailable), and the form ignores a submit while one is running, which is what `disabled` did before | **fixed** (`FormDialog`, with two tests that failed first). Not re-checked in a browser yet |
 | L1 | Low | The map "team id → colour and icon key" is built by the same three lines in `PlayViewModel` and `HostViewModel` | **fixed** (`teamLooksById`) |
 | L2 | Low | Seven pages each carry their own copy of the page, heading and section styles (with the same comment), and the 44 px tap-target size is written in about twenty places | **fixed** (`components/usePageStyles.ts`, `components/sizes.ts`). The dev-only theme preview keeps its own headings |
 | L3 | Low | `TeamPicker` and `TeamStylePicker` repeat the same radio-card frame (fieldset, legend, grid, card, focus ring, error line) | **fixed** (`components/RadioCards.tsx`: `RadioCardGroup` and `RadioCard`, with its own test) |
@@ -58,6 +81,24 @@ Severity: **High** = would hurt on event day. **Medium** = wrong behaviour in a 
 - Database: container `buzzer-f9-uat` (`postgres:16-alpine`, port 5437). **Remove it when F9 is done:** `docker rm -f buzzer-f9-uat`.
 - API: `dotnet publish` of the Api into the session scratchpad, with the built frontend copied into its `wwwroot`, run in Production mode on port 5290 with environment variables (its own join code and admin). The repo's `wwwroot`, the dev database and User Secrets are not touched.
 - Browsers: a throwaway Playwright script (Edge, headless, 360 px wide phone contexts) in the scratchpad. Each run uses a new join code, which the server treats as a new event.
+- **Where the scratch files are:** `C:\Users\numan\AppData\Local\Temp\claude\18ac847a46a2a0ef\bb254bb7-936c-40ea-b90d-91b43b4d3ff4\scratchpad` (a temporary folder outside the repo; a new session may have to ask before it reads or runs things there).
+  - `api\`: the published API. Its `wwwroot` must be replaced after every frontend build: delete it, then copy `frontend/dist/*` in.
+  - `walk\lib.mjs`: helpers. `startApi({ joinCode })` starts `dotnet BuzzerApp.Api.dll` on port 5290 with the environment variables (connection string to port 5437, the join code, an admin "Uat Host" / "Hosty" / PIN 4321, migrate on start); also `stopApi`, `launch`, `newPerson`, `register`, `signIn`, `apiRegister`, `check`, `summary`, `overflowsSideways`.
+  - `walk\walk.mjs <label>`: the whole walkthrough (join errors, register / refresh / sign out / sign in, taken names and the rate limit, names visibility, team edits, scores, two rounds, an API restart mid-round, promotion with two hosts, the guards, finalize and export, H1, M2, console errors). Run from `walk\` with `node walk.mjs arcade6`.
+  - `walk\probe-wide.mjs`, `walk\probe-dialog4.mjs`, `walk\probe-nav.mjs`: small checks of one thing each. `walk\shots\`: screenshots.
+- **If that folder is gone,** rebuild it: `dotnet publish backend/src/BuzzerApp.Api -c Release -o <scratch>/api`, copy `frontend/dist` into its `wwwroot`, `npm install playwright-core` in a scratch folder, and drive the installed Edge with `chromium.launch({ channel: 'msedge', headless: true })`. Start the container with `docker run -d --name buzzer-f9-uat -e POSTGRES_USER=uat -e POSTGRES_PASSWORD=uat-f9-throwaway -e POSTGRES_DB=buzzer_uat -p 127.0.0.1:5437:5432 postgres:16-alpine` if it is not running.
+- **Mistakes in the script, still to fix** (they are why the last run stopped at 47 of 57):
+  1. `teamMenu` / `memberMenu` find a button by a name such as "Extra 1", which also matches "Extra 10" to "Extra 18". Use `exact: true`.
+  2. `getByLabel('Points')` also matches the section "Add or remove points". Use `getByRole('textbox', { name: 'Points' })`, and the same for Multiplier and Reason.
+  3. The "delete is refused" check looks for `role="alert"`; Fluent's message bar is `role="group"`. Check the dialog's text instead ("can't be deleted").
+- Writing a script inside a Bash heredoc kept failing on quoting. Write the file with the Write tool and run it with `node <file>`.
+
+## Seen, not changed (for the developer to judge)
+
+Both are in the arcade pack at 360 px wide. Neither breaks anything; they are about looks, so they are the developer's call.
+
+- **Team names break in the middle of a word on the team cards** ("Rage Quitter / s", "AFK Allstar / s"). `TeamCard` shows the name at `fontSizeBase500` with `overflowWrap: anywhere`. A smaller size on narrow screens, or breaking only between words, would fix it.
+- **The header is tall.** The event's name wraps to three lines next to the person's name and "Sign out", about 180 px of a 740 px screen.
 
 ## For Milestone R (found during the review; nothing to do in F9)
 
@@ -66,4 +107,5 @@ Severity: **High** = would hurt on event day. **Medium** = wrong behaviour in a 
 
 ## Decisions waiting for the developer
 
+- **H3:** may the backend send `TeamsChanged` / `ScoresChanged` after a successful registration? It is one call in `SessionService` plus a test case. Without it the Teams screen is not a live lobby while people join. Ask this one first: it matters more on the night.
 - **M4, F8's open item:** should Export work without pressing Finalize first in the same visit? It needs the event id on `GET /api/event` (one field in `EventInfoResponse`, a backend change), or a new `GET` that says whether an archive exists. Today: Finalize, then Download, and finalizing again is harmless.
