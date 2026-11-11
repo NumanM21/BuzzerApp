@@ -1,5 +1,18 @@
 import { describe, expect, it } from 'vitest';
-import { clientRoundErrors, describeRoundError } from './roundErrors';
+import { clientRoundErrors, describeRoundError, isUndeliveredRoundError } from './roundErrors';
+
+describe('isUndeliveredRoundError', () => {
+  it.each([clientRoundErrors.offline, clientRoundErrors.failed])('%s may be tried again', (code) => {
+    expect(isUndeliveredRoundError(code)).toBe(true);
+  });
+
+  it.each(['round.notOpen', 'round.windowClosed', 'round.unknownPlayer', 'round.duplicatePlayer', null, undefined])(
+    'a server ruling (%s) may not',
+    (code) => {
+      expect(isUndeliveredRoundError(code)).toBe(false);
+    },
+  );
+});
 
 describe('describeRoundError', () => {
   it.each([

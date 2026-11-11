@@ -9,6 +9,14 @@ export const clientRoundErrors = {
   failed: 'client.failed',
 } as const;
 
+/**
+ * True when the command never got a ruling from the server (not connected, or the call itself failed), so the same
+ * press may simply be tried again. A server answer, even a refusal, is a ruling: it won't change by asking again.
+ */
+export function isUndeliveredRoundError(code: string | null | undefined): boolean {
+  return code === clientRoundErrors.offline || code === clientRoundErrors.failed;
+}
+
 const GENERIC = 'Something went wrong. Try again';
 
 // The server's codes (FrontendSteps Appendix A) and the client's, each as a sentence for the person who pressed.
