@@ -7,6 +7,18 @@ Earlier history, before this file existed: the "Changed …" notes inside `PlanM
 
 ---
 
+## 11 Nov 2026 — One manual checklist, fed by every step
+
+**Decided by:** the developer, after F6.
+
+| # | Change | Why |
+|---|---|---|
+| 1 | **`docs/ManualTestChecklist.md` is the single list of what to try by hand.** Every step (frontend; the same rule is in `CLAUDE.md` for any step) adds one row per manual check, with what to do and what to expect, written for someone who did not read the code, before it marks itself done. F0–F6 were backfilled from their briefs and DONE notes. | The deferral below (manual testing at the end) meant the checks were scattered across DONE notes. The developer wants a proper start-to-finish walkthrough, not a hunt |
+| 2 | **F9 assembles the walkthrough**: dedupes, orders it, writes section 7 (a whole games night), and marks which rows its live run already proved. | One person-sized session instead of twenty fragments |
+| 3 | **F9 must settle a known duplicate:** `JoinViewModel`'s own server-error-to-field mapping (F3) versus the shared `mvvm/FormSubmission.ts` / `readFailure` that F6 added. Recorded in the F3 and F6 DONE notes and in the F9 brief. | F6 chose not to touch the join screen; the duplicate would otherwise be forgotten |
+
+---
+
 ## 11 Nov 2026 — Manual testing deferred to the end
 
 **Decided by:** the developer, during F5.
