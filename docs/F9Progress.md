@@ -6,22 +6,20 @@
 
 ## Where it stopped (11 Nov 2026, fourth session)
 
-**State of the repo:** branch `frontend-f9`, last code commit `Let the score form's drop-down shrink to a phone's width`, nothing uncommitted. `npm run lint`, `npm run build` and `npm test` (1356 tests in 89 files) all pass. Nothing is pushed.
+**State of the repo:** branch `frontend-f9`, last commit `Put the Playwright backlog in priority order`, nothing uncommitted. `npm run lint`, `npm run build` and `npm test` (1356 tests in 89 files) all pass. Nothing is pushed.
 
-**Exact place:** part 2 (the live walkthrough) is finished except its last item. Steps 1 and 2 of the old list are done: M5 and M6 were re-checked in a real browser (M5 was not fully fixed; it is now, see the table), and the walkthrough passes **106 of 106 checks** in each of three set-ups: arcade pack with six teams, `default` pack with three teams (one with a 24-character name), arcade pack with eight teams (one with a 24-character name, two with icon keys the pack doesn't know). The only finding it still prints is H3, which waits for the developer.
+**Exact place:** parts 1, 2 and 3 are finished. Part 4 (wrap up) has started: Appendix B is in priority order. **No more code changes and no more walkthrough runs are planned**; what is left is two decisions and paperwork.
+
+- Part 2: the walkthrough passes 106 of 106 checks in four set-ups (arcade pack with six teams, `default` pack with three, arcade pack with eight, and through the Vite dev server). M1, M5 and M6 were re-checked in a real browser. The only finding it still prints is H3.
+- Part 3: `docs/ManualTestChecklist.md` is one start-to-finish session (commit `Add F9 manual checks`). Its rows for H3 (section 1, "The lobby") and M4 (section 8, "reload the Event screen") describe **today's** behaviour: change them if the decisions below change it.
 
 **What to do next, in order:**
 
-3. **The last walkthrough pass: once through the Vite dev server** (it proxies to port 5283, so start the scratch API on 5283 for that pass: `startApi({ joinCode, port: 5283 })`, and run the script with `BASE=http://localhost:5173`). Also check M1 there: open the app with the API stopped, start it, press "Try again", and the event name and theme arrive. Put the scratch `api/appsettings.json` back first (`appsettings.arcade6.json` next to the `api` folder is the original).
-4. **Part 3:** rework `docs/ManualTestChecklist.md` into one start-to-finish session (read its "For AI workers" section first): set-up at the top, duplicates merged, rows that F9 made wrong removed, rows added for H1, H2, M2, M5, M6 and H3, section 7 "Whole-evening run" filled, rows the live walkthrough proved marked as such. Tick nothing. Commit as `Add F9 manual checks`.
-5. **Part 4, wrap up:**
-   - Ask the developer, **one question at a time**: first H3 (may the backend send the change messages after a registration?), then M4 (should Export work without Finalize first?). Both are backend changes, so the answer may be "do it in a backend step"; record whichever is decided.
-   - Tell the developer the two things that are a matter of taste (see "Seen, not changed").
-   - Put Appendix B of `docs/FrontendSteps.md` in priority order as the Playwright backlog, adding H1, H2, M2, M5 and M6 (none can be shown in jsdom).
-   - Update `docs/PlanMVP.md`, `CLAUDE.md` and `docs/FrontendSteps.md` (the F9 DONE note with the findings below, deviations, and what was not checked by hand; the steps table; the "start at" line), and add a `docs/DecisionLog.md` entry.
-   - Delete this file. Last commit: `Mark F9 done in FrontendSteps`.
-6. **Clean up:** `docker rm -f buzzer-f9-uat`; make sure no `dotnet BuzzerApp.Api.dll` is left on port 5290 or 5283; confirm `git status` shows nothing from the walkthrough.
-7. **Finish** with a plain-words summary for the developer: what was fixed and why, and which manual checks were not run.
+1. **Ask the developer, one question at a time:** first H3, then M4 (see "Decisions waiting for the developer"), then whether the throwaway Playwright script should be kept somewhere as the starting point for the post-MVP work (PlanMVP §11, O10) or only described, as Appendix B does now. The developer's note of 11 Nov: Playwright is post-MVP, unit tests are enough for the MVP, hand the existing work over to the post-MVP to-do.
+2. **Tell the developer the three things that are a matter of taste** (see "Seen, not changed").
+3. **Write up:** the F9 DONE note in `docs/FrontendSteps.md` (the findings table below, deviations, what was not checked by hand; the steps table; the "start at" line); `docs/PlanMVP.md` and `CLAUDE.md` for anything that changed (Milestone F is finished; the notes under "For Milestone R"); a `docs/DecisionLog.md` entry. Delete this file. Last commit: `Mark F9 done in FrontendSteps`.
+4. **Clean up:** `docker rm -f buzzer-f9-uat`; make sure nothing listens on port 5290, 5283 or 5173; confirm `git status` shows nothing from the walkthrough.
+5. **Finish** with a plain-words summary for the developer: what was fixed and why, and which manual checks were not run.
 
 ## Order of work
 
@@ -29,9 +27,9 @@
 |---|---|---|---|
 | 1a | 1. Review | Read the whole frontend against the shared rules; write the findings below, by severity | **done** (11 Nov 2026) |
 | 1b | 1. Review | Fix the findings in small commits, each with a test that failed first where one is possible | **done** except H3 and M4, which wait for the developer. 1355 tests, lint and build clean |
-| 2 | 2. Live walkthrough | Separate PostgreSQL container, API in Production mode serving the built frontend, real browsers driven by a throwaway script; then once through the Vite dev server; another team count; the `default` pack | **in progress**, about half way (see "Where it stopped"). Found H2, H3, M5 and M6 so far |
-| 3 | 3. Manual walkthrough | Turn `docs/ManualTestChecklist.md` into one start-to-finish session; fill section 7; mark what the live walkthrough proved | not started |
-| 4 | 4. Wrap up | Export-before-finalize decision (the developer's); deployment notes for Milestone R; Appendix B in priority order; PlanMVP / CLAUDE.md / DecisionLog; mark F9 done | not started |
+| 2 | 2. Live walkthrough | Separate PostgreSQL container, API in Production mode serving the built frontend, real browsers driven by a throwaway script; then once through the Vite dev server; another team count; the `default` pack | **done** (11 Nov 2026). Found H2, H3, M5, M6 and M7 |
+| 3 | 3. Manual walkthrough | Turn `docs/ManualTestChecklist.md` into one start-to-finish session; fill section 7; mark what the live walkthrough proved | **done** (11 Nov 2026) |
+| 4 | 4. Wrap up | Export-before-finalize decision (the developer's); deployment notes for Milestone R; Appendix B in priority order; PlanMVP / CLAUDE.md / DecisionLog; mark F9 done | **in progress**: Appendix B done; the rest waits for the two decisions |
 
 ## Baseline (before any F9 change)
 
@@ -96,10 +94,11 @@ Severity: **High** = would hurt on event day. **Medium** = wrong behaviour in a 
 
 ## Seen, not changed (for the developer to judge)
 
-Both are in the arcade pack at 360 px wide. Neither breaks anything; they are about looks, so they are the developer's call.
+All are at 360 px wide. None breaks anything; they are about looks, so they are the developer's call. Each has a "Your call" row in section 2 of the manual checklist.
 
 - **Team names break in the middle of a word on the team cards** ("Rage Quitter / s", "AFK Allstar / s"). `TeamCard` shows the name at `fontSizeBase500` with `overflowWrap: anywhere`. A smaller size on narrow screens, or breaking only between words, would fix it.
 - **The header is tall.** The event's name wraps to three lines next to the person's name and "Sign out", about 180 px of a 740 px screen.
+- **The "Continue" button on the join screen** sits level with the "Join code" label, a little above the box it belongs to.
 
 ## For Milestone R (found during the review; nothing to do in F9)
 
