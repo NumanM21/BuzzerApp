@@ -2,7 +2,7 @@
 
 > **Audience:** AI workers implementing one step each in a fresh session, and the developer who starts and reviews them.
 > Adds implementation detail to `docs/PlanMVP.md` §10 Milestone F. **PlanMVP wins on product decisions; this file wins on frontend implementation detail.**
-> Written 10 Nov 2026. **F0–F7 are done: start at F8.**
+> Written 10 Nov 2026. **F0–F8 are done: start at F9.**
 >
 > The backend is finished and is not changed by these steps. If a step seems to need a backend change, stop and ask the developer.
 
@@ -16,7 +16,7 @@
 | F5 | `frontend-f5` — **DONE** | Sonnet 5.5 | `/play`: buzzer and team queue |
 | F6 | `frontend-f6` — **DONE** | Sonnet 5.5 | `/teams`: team cards, edit names, rename, move, make admin, create and delete team |
 | F7 | `frontend-f7` — **DONE** | Sonnet 5.5 | `/scores` leaderboard; `/admin/scores` adjustments and undo |
-| F8 | `frontend-f8` | Sonnet 5.5 | `/admin` host screen; `/admin/event` finalize and export |
+| F8 | `frontend-f8` — **DONE** | Sonnet 5.5 | `/admin` host screen; `/admin/event` finalize and export |
 | F9 | `frontend-f9` | **Fable** | Whole-frontend review, live walkthrough against the real backend, fixes |
 
 Opus is suggested where a mistake is expensive: F0 fixes the architecture for every later step, and F4 has lifecycle and timing bugs that only show up on a real phone. If a Sonnet step goes wrong twice on the same point, rerun that step on Opus.
@@ -791,7 +791,30 @@ Teams and players change every year: 2026 has six teams; another year may have t
 
 ---
 
-## F8 — Host and event admin
+## F8 — Host and event admin — DONE
+
+> **Done 11 Nov 2026. Kept for reference; do not redo.**
+>
+> **What exists** (`frontend/src/`)
+> - `domain/hostRound.ts` (+ test): `hostActionsAllowedIn(phase)` (Begin in `idle`, Next team in `locked`, Reset in everything but `idle`), `describeRoundPhase`, `formatBuzzOffset` / `formatBuzzLine` (`#2 Bob (Team 1) +0.21s · not counted`; integer hundredths so 1.005 rounds up like 1.01, not down), `formatElapsed` (`m:ss.t`, never below zero). `domain/connectionNotice.ts` (+ test): the three "not connected" sentences, now shared by `PlayViewModel` (which had its own copy) and the host screen.
+> - `features/admin/HostViewModel.ts` (+ test) and `AdminPage.tsx` (+ page test; replaces the placeholder, same export): `isConnecting` (no admin snapshot yet: a spinner, never an empty queue), `connectionNotice`, `phaseText`, `buttons` (`{ action, label, enabled }`), `error`, `queue` (F5's `buildQueueRows` over the admin snapshot's queue, so `TeamQueue` is reused as it is), `answering` (team, who buzzed, stopwatch text), `buzzes`. The stopwatch tick (100 ms `setInterval`) starts in `activate()` and is cleared in `dispose()`; both are safe to repeat (StrictMode), and a test counts the timers.
+> - `features/admin/EventAdminViewModel.ts` (+ test), `FinalizeDialog.tsx` (on F6's `FormDialog` and `FormSubmission`) and `AdminEventPage.tsx` (+ page test over MSW; replaces the placeholder, same export).
+> - `app/lazyAdminPages.tsx`: the three admin screens are `React.lazy` + `Suspense` (see deviations).
+>
+> **Deviations and decisions**
+> - **One `Command` for the three host buttons.** While any call is in flight all three are disabled and a second tap is ignored, so Reset can't fire twice. A button that is greyed also refuses `run()` in the view model, not only in the view.
+> - **The buttons are enabled only while connected and with an admin snapshot**, besides the phase rule (the brief had only the phase rule): offline the round store would answer `client.offline` anyway, and a greyed button says why nothing happens.
+> - **A refused command's sentence is tied to the phase it arrived in.** It disappears when the next snapshot changes the phase, or when the next command starts. Two hosts pressing at once: the loser's "A round is already running" shows quietly, then goes as the snapshot arrives. The snapshot, not the answer, is what the screen trusts.
+> - **Export is a plain `<a href download>`** (the brief's choice). `ArchiveApi.exportArchive` and `ApiClient.download` (and `Download`, its tests, the MSW export handler and the fake's file) were deleted; `ArchiveApi.exportUrl(eventId)` returns `/api/archive/{id}/export` so the route is written once. The `download` attribute names the file `buzzer-archive-<year>.json` (the server's `Content-Disposition` says the same).
+> - **Open item, as the brief asked, not solved:** Export exists only after a Finalize **in the same visit to the screen** (the id comes from the finalize answer; a reload forgets it). The screen says so ("Finalize the event first…"). Showing Export at once needs the event id on `GET /api/event` (a backend change). **F9 and the developer decide.**
+> - **The finalize confirmation's form is created fresh each time it opens**, so an error from an earlier attempt doesn't greet the next one. It closes only when the server accepted.
+> - **`/dev/realtime` lost the host buttons** (as the brief allowed); it keeps the Buzz button for a player and shows both snapshots. `RealtimeDebugViewModel.actions` / `run` became `canBuzz` / `buzz`.
+> - **The admin screens load on demand** (not in the brief). Adding F8 took the main chunk to 502.7 kB and Vite's 500 kB notice returned, which breaks "zero warnings". Players never need the host screens, so `routes.ts` points the three admin routes at `LazyAdminPage`, `LazyAdminScoresPage` and `LazyAdminEventPage`. It is `React.lazy` inside the page, not a lazy *route*: a lazy route would blank the whole app (header too) until the file arrived. Result: main chunk 480 kB, plus 6, 15 and 3 kB admin chunks. A player landing on `/admin` still fetches the chunk before the guard turns them away; harmless. F9's "decide whether to lazy-load" is therefore decided; F9 can still review it.
+> - `components/PlaceholderPage` is deleted (its last user was replaced).
+> - **Checked:** lint, build (no notices), tests (1310). **Not checked** (no browser, and manual testing is deferred): the brief's three-round check on real phones; the stopwatch against a real server's clock; two hosts pressing at once; the look of both screens at 360 px in the arcade pack with 13 teams and the longest names (Press Start 2P in the stopwatch, the 64 px buttons); the download itself landing as `buzzer-archive-<year>.json`. All of it is in `docs/ManualTestChecklist.md`, section 6 (and the F4/F5 rows that used `/dev/realtime`'s host buttons now say to use the host screen).
+>
+> **Later steps must know**
+> - **F9:** decide the export-before-finalize item with the developer; the duplicated error mapping in `JoinViewModel` (F3/F6 notes) is still open; Appendix B has F8's candidates.
 
 **Model:** Sonnet 5.5. **Read also:** PlanMVP D10–D12, D29; Appendix A "Hub" and "Archive".
 
@@ -845,7 +868,7 @@ Each step was built in isolation, mostly by smaller models. This step finds what
 - **Lifecycle:** F4's eight rules, re-read against the code and the tests.
 - **Security and privacy:** nothing sent with a buzz or host action; real names shown only where the server sent them; no real names or exports kept in storage; admin screens unreachable for players (guards and the server's 403 both).
 - **Tests:** tests that can pass for the wrong reason, missing error cases, real timers, hard-coded 2026 data, an integration test that repeats what unit tests already prove.
-- **Quality:** readable by a person new to React; names say what things are; no dead code, no leftover dev scaffolding in the production bundle (`/dev/*` routes are dev-only); bundle size sane for a phone on 4G. **Known from F7:** the app chunk was 494 kB after F7 (Vite's notice is at 500 kB; the Fluent chunk is separate at 414 kB), and F8 will add more. Decide whether to lazy-load the admin routes (`/admin`, `/admin/scores`, `/admin/event`), which players never need, so a player's phone doesn't download the host screens.
+- **Quality:** readable by a person new to React; names say what things are; no dead code, no leftover dev scaffolding in the production bundle (`/dev/*` routes are dev-only); bundle size sane for a phone on 4G. **Known from F7:** the app chunk was 494 kB after F7 (Vite's notice is at 500 kB; the Fluent chunk is separate at 414 kB), and F8 will add more. **F8 already lazy-loads the three admin screens** (`app/lazyAdminPages.tsx`; main chunk 480 kB, Fluent 414 kB): review that it behaves (spinner while the header stays, no flash for an admin) and whether anything else deserves the same.
 - **Accessibility and devices:** 360 px, keyboard, focus, text with every colour, reduced motion.
 
 **2. Live walkthrough** (as B9 did for the backend; nothing from it is committed)
@@ -1055,3 +1078,9 @@ End-to-end tests are a later addition (PlanMVP §11). Each step appends the scen
 | F7 | `/admin/scores` at 360 px with 13 teams, 24-character team names and 45 players, in both packs: no horizontal scroll, the picker, buttons ("Remove −30") and rows fit; the form isn't buried under the player list | Layout and Press Start 2P glyph widths only exist in a real rendering engine |
 | F7 | A negative team and player total shows `-15`, never a padded `-00015`, in the arcade pack | Real fonts and the pack's digit padding together |
 | F7 | A player opens `/admin/scores` by address and is sent to `/play`; the server answers 403 to the admin score lists for a player's cookie | The route guard plus the server's refusal, with a real cookie |
+| F8 | A full round across three browser contexts (host and two players on different teams): Begin → both buzz → locked → Next team → Reset; every screen agrees at each step | Real cookies, a real hub and the server's own timing (the two-second window); the tests fake the connection |
+| F8 | Two host contexts tap Begin at the same moment: exactly one round starts, both screens end in the same state, the loser sees a short sentence that goes away | A real race on the server; only two real sessions show who wins and what the loser sees |
+| F8 | The host's stopwatch starts near `0:00.0` when a team becomes current, even with the browser's clock set minutes wrong (Playwright can fake the page's clock) | The server-clock offset against a real `serverNow`; the tests use a fake clock |
+| F8 | Finalize, then click Download: a file named `buzzer-archive-<year>.json` is saved and the page stays on the Event screen | A real browser download of a real response; jsdom doesn't download |
+| F8 | A player's browser opening `/api/archive/1/export` gets a refusal and no file; a player opening `/admin/event` lands on `/play` | The server's authorization with a real cookie, plus the route guard |
+| F8 | As a player nothing named `Admin…` is requested in the network log; as an admin the first visit to Host fetches its chunk and shows a spinner, not a blank page | Real code-splitting and network timing |
