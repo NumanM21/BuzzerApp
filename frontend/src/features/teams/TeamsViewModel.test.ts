@@ -98,7 +98,7 @@ describe('TeamsViewModel', () => {
 
       expect(vm.state).toBe('ready');
       expect(vm.cards).toHaveLength(3);
-      expect(vm.loadError).toBeDefined();
+      expect(vm.loadError).toBe(ApiError.network().message);
     });
 
     it('loads the teams and the pack keys when activated', async () => {

@@ -164,12 +164,12 @@ describe('AdjustmentEntryViewModel', () => {
     it('takes away a field message when that field is edited', async () => {
       const { vm } = await setup();
       await vm.add();
-      expect(vm.form.fieldErrors.amount).toBeDefined();
+      expect(vm.form.fieldErrors.amount).toBe('Enter a whole number above 0');
 
       vm.setAmount('5');
 
       expect(vm.form.fieldErrors.amount).toBeUndefined();
-      expect(vm.form.fieldErrors.targetId).toBeDefined();
+      expect(vm.form.fieldErrors.targetId).toBe('Pick a team or a player');
     });
   });
 

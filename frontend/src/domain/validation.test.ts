@@ -18,7 +18,7 @@ import {
 
 describe('validateJoinCode', () => {
   it.each(['', '   '])('rejects %j', (code) => {
-    expect(validateJoinCode(code)).toBeDefined();
+    expect(validateJoinCode(code)).toBe('Enter the join code');
   });
 
   it('accepts any code with a character in it: the server decides whether it is the right one', () => {
@@ -67,13 +67,13 @@ describe('validatePin', () => {
   });
 
   it.each(['', '123', '12345', '12a4', ' 123', '١٢٣٤'])('rejects %j', (pin) => {
-    expect(validatePin(pin)).toBeDefined();
+    expect(validatePin(pin)).toBe('The PIN is exactly 4 digits');
   });
 });
 
 describe('validateTeamChoice', () => {
   it('asks for a team when none is chosen', () => {
-    expect(validateTeamChoice(undefined)).toBeDefined();
+    expect(validateTeamChoice(undefined)).toBe('Pick your team');
   });
 
   it('accepts a team, even one with id 0', () => {
