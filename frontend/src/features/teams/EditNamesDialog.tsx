@@ -1,12 +1,12 @@
 import { Field, Input } from '@fluentui/react-components';
 import { observer } from 'mobx-react-lite';
 import { FormDialog } from '@/components/FormDialog';
-import { useTextBoxStyles } from '@/components/useTextBoxStyles';
+import { useFieldControlStyles } from '@/components/useFieldControlStyles';
 import type { EditNamesViewModel } from './EditNamesViewModel';
 
 /** Display name and real name, both prefilled; the view model sends only what changed. */
 export const EditNamesDialog = observer(function EditNamesDialog({ vm, open }: { vm: EditNamesViewModel; open: boolean }) {
-  const textBox = useTextBoxStyles();
+  const controls = useFieldControlStyles();
   const { fieldErrors } = vm.form;
 
   return (
@@ -27,7 +27,7 @@ export const EditNamesDialog = observer(function EditNamesDialog({ vm, open }: {
         validationState={fieldErrors.displayName ? 'error' : 'none'}
       >
         <Input
-          className={textBox.textBox}
+          className={controls.textBox}
           value={vm.displayName}
           autoComplete="off"
           onChange={(_, data) => vm.setDisplayName(data.value)}
@@ -40,7 +40,7 @@ export const EditNamesDialog = observer(function EditNamesDialog({ vm, open }: {
         validationState={fieldErrors.realName ? 'error' : 'none'}
       >
         <Input
-          className={textBox.textBox}
+          className={controls.textBox}
           value={vm.realName}
           autoComplete="off"
           onChange={(_, data) => vm.setRealName(data.value)}

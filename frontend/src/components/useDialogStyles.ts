@@ -1,6 +1,6 @@
 import { makeStyles, tokens } from '@fluentui/react-components';
 
-/** Styles the small dialogs share for their sentences. (Their text boxes use `useTextBoxStyles`.) */
+/** Styles the small dialogs share for their sentences. (Their text boxes use `useFieldControlStyles`.) */
 export const useDialogStyles = makeStyles({
   // A 24-character team name in a wide font must wrap rather than widen the dialog.
   paragraph: {

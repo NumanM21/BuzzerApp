@@ -1,11 +1,11 @@
 import { Field, Input } from '@fluentui/react-components';
 import { observer } from 'mobx-react-lite';
 import { FormDialog } from '@/components/FormDialog';
-import { useTextBoxStyles } from '@/components/useTextBoxStyles';
+import { useFieldControlStyles } from '@/components/useFieldControlStyles';
 import type { RenameTeamViewModel } from './RenameTeamViewModel';
 
 export const RenameTeamDialog = observer(function RenameTeamDialog({ vm, open }: { vm: RenameTeamViewModel; open: boolean }) {
-  const textBox = useTextBoxStyles();
+  const controls = useFieldControlStyles();
   const error = vm.form.fieldErrors.name;
 
   return (
@@ -21,7 +21,7 @@ export const RenameTeamDialog = observer(function RenameTeamDialog({ vm, open }:
     >
       <Field label="Team name" validationMessage={error} validationState={error ? 'error' : 'none'}>
         <Input
-          className={textBox.textBox}
+          className={controls.textBox}
           value={vm.name}
           autoComplete="off"
           onChange={(_, data) => vm.setName(data.value)}

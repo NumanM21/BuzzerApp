@@ -18,7 +18,7 @@ import { useSearchParams } from 'react-router';
 import { useViewModel } from '@/app/useViewModel';
 import { TeamPicker } from '@/components/TeamPicker';
 import { usePageStyles } from '@/components/usePageStyles';
-import { useTextBoxStyles } from '@/components/useTextBoxStyles';
+import { useFieldControlStyles } from '@/components/useFieldControlStyles';
 import { appTokens } from '@/theme/appTokens';
 import { JoinViewModel } from './JoinViewModel';
 import { TAP_TARGET } from '@/components/sizes';
@@ -74,7 +74,7 @@ export const JoinPage = observer(function JoinPage() {
   );
   const styles = useStyles();
   const page = usePageStyles();
-  const textBox = useTextBoxStyles();
+  const controls = useFieldControlStyles();
 
   const onSubmit = (event: FormEvent) => {
     event.preventDefault();
@@ -106,7 +106,7 @@ export const JoinPage = observer(function JoinPage() {
             validationState={vm.joinCodeError ? 'error' : 'none'}
           >
             <Input
-              className={textBox.textBox}
+              className={controls.textBox}
               value={vm.joinCode}
               autoComplete="off"
               autoCapitalize="off"
@@ -129,7 +129,7 @@ export const JoinPage = observer(function JoinPage() {
           validationState={vm.fieldErrors.realName ? 'error' : 'none'}
         >
           <Input
-            className={textBox.textBox}
+            className={controls.textBox}
             value={vm.realName}
             autoComplete="off"
             onChange={(_, data) => vm.setRealName(data.value)}
@@ -144,7 +144,7 @@ export const JoinPage = observer(function JoinPage() {
             validationState={vm.fieldErrors.displayName ? 'error' : 'none'}
           >
             <Input
-              className={textBox.textBox}
+              className={controls.textBox}
               value={vm.displayName}
               autoComplete="off"
               onChange={(_, data) => vm.setDisplayName(data.value)}
@@ -159,7 +159,7 @@ export const JoinPage = observer(function JoinPage() {
           validationState={vm.fieldErrors.pin ? 'error' : 'none'}
         >
           <Input
-            className={textBox.textBox}
+            className={controls.textBox}
             type="password"
             inputMode="numeric"
             maxLength={4}
