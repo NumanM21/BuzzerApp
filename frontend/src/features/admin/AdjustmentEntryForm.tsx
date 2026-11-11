@@ -3,8 +3,7 @@ import { observer } from 'mobx-react-lite';
 import { appTokens } from '@/theme/appTokens';
 import { useDialogStyles } from '@/components/useDialogStyles';
 import type { AdjustmentEntryViewModel } from './AdjustmentEntryViewModel';
-
-const tapTarget = '44px';
+import { TAP_TARGET } from '@/components/sizes';
 
 const useStyles = makeStyles({
   form: {
@@ -23,7 +22,7 @@ const useStyles = makeStyles({
     maxWidth: 'none',
   },
   selectControl: {
-    minHeight: tapTarget,
+    minHeight: TAP_TARGET,
   },
   preview: {
     margin: 0,
@@ -36,7 +35,7 @@ const useStyles = makeStyles({
     gap: tokens.spacingHorizontalM,
   },
   button: {
-    minHeight: tapTarget,
+    minHeight: TAP_TARGET,
     // "Remove −30" in a wide pack font must wrap rather than push the other button off a phone.
     overflowWrap: 'anywhere',
   },

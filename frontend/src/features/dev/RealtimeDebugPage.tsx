@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import { useViewModel } from '@/app/useViewModel';
 import { appTokens } from '@/theme/appTokens';
 import { RealtimeDebugViewModel } from './RealtimeDebugViewModel';
+import { TAP_TARGET } from '@/components/sizes';
 
 const useStyles = makeStyles({
   page: {
@@ -34,7 +35,7 @@ const useStyles = makeStyles({
     gap: tokens.spacingHorizontalM,
   },
   action: {
-    minHeight: '44px',
+    minHeight: TAP_TARGET,
   },
   snapshot: {
     margin: 0,

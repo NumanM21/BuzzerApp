@@ -3,17 +3,13 @@ import { AddRegular } from '@fluentui/react-icons';
 import { observer } from 'mobx-react-lite';
 import { useViewModel } from '@/app/useViewModel';
 import { TeamCard } from '@/components/TeamCard';
-import { appTokens } from '@/theme/appTokens';
+import { usePageStyles } from '@/components/usePageStyles';
 import { TeamActionsMenu, MemberActionsControl } from './TeamMenus';
 import { TeamsDialogs } from './TeamsDialogs';
 import { TeamsViewModel } from './TeamsViewModel';
+import { TAP_TARGET } from '@/components/sizes';
 
 const useStyles = makeStyles({
-  page: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: tokens.spacingVerticalL,
-  },
   header: {
     display: 'flex',
     flexWrap: 'wrap',
@@ -21,15 +17,8 @@ const useStyles = makeStyles({
     justifyContent: 'space-between',
     gap: tokens.spacingHorizontalM,
   },
-  heading: {
-    margin: 0,
-    fontFamily: appTokens.fontHeading,
-    // Explicit, or the browser's 1.5em default outgrows the inherited line height and a wrapped heading overlaps itself.
-    fontSize: tokens.fontSizeBase600,
-    lineHeight: tokens.lineHeightBase600,
-  },
   addButton: {
-    minHeight: '44px',
+    minHeight: TAP_TARGET,
   },
   // One column on a phone, more as the screen allows. Nothing assumes a number of teams.
   grid: {
@@ -37,10 +26,6 @@ const useStyles = makeStyles({
     gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 18rem), 1fr))',
     gap: tokens.spacingHorizontalL,
     alignItems: 'start',
-  },
-  hint: {
-    margin: 0,
-    color: appTokens.textMuted,
   },
 });
 
@@ -51,11 +36,12 @@ export const TeamsPage = observer(function TeamsPage() {
       new TeamsViewModel(services.teams, services.session, services.round, services.event, services.themes),
   );
   const styles = useStyles();
+  const page = usePageStyles();
 
   return (
-    <div className={styles.page}>
+    <div className={page.page}>
       <div className={styles.header}>
-        <h1 className={styles.heading}>Teams</h1>
+        <h1 className={page.title}>Teams</h1>
         {vm.isAdmin && (
           <Button className={styles.addButton} icon={<AddRegular />} onClick={vm.openAddTeam}>
             Add team
@@ -74,7 +60,7 @@ export const TeamsPage = observer(function TeamsPage() {
 
       {vm.state === 'loading' && <Spinner label="Loading the teams" />}
       {vm.state === 'empty' && (
-        <p className={styles.hint}>{vm.isAdmin ? 'There are no teams yet. Add the first one.' : 'There are no teams yet.'}</p>
+        <p className={page.hint}>{vm.isAdmin ? 'There are no teams yet. Add the first one.' : 'There are no teams yet.'}</p>
       )}
       {vm.state === 'ready' && (
         <div className={styles.grid}>

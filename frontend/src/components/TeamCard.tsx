@@ -4,6 +4,7 @@ import { useId, type ReactNode } from 'react';
 import { appTokens } from '@/theme/appTokens';
 import { useTeamVisual } from '@/theme/useTeamVisual';
 import { useCopy } from '@/theme/useThemePack';
+import { TAP_TARGET } from './sizes';
 
 export interface TeamCardMember {
   id: number;
@@ -83,7 +84,7 @@ const useStyles = makeStyles({
     display: 'flex',
     alignItems: 'center',
     gap: tokens.spacingHorizontalS,
-    minHeight: '44px',
+    minHeight: TAP_TARGET,
   },
   memberNames: {
     display: 'flex',

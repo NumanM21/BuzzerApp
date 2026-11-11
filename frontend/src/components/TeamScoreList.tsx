@@ -4,6 +4,7 @@ import type { TeamScoreRow } from '@/domain/scoreRows';
 import { appTokens } from '@/theme/appTokens';
 import { useTeamVisual } from '@/theme/useTeamVisual';
 import { useCopy, useFormatScore } from '@/theme/useThemePack';
+import { TAP_TARGET } from './sizes';
 
 export interface TeamScoreListProps {
   /** In the server's order, with the server's ranks. */
@@ -23,7 +24,7 @@ const useStyles = makeStyles({
     display: 'flex',
     alignItems: 'center',
     gap: tokens.spacingHorizontalM,
-    minHeight: '44px',
+    minHeight: TAP_TARGET,
     padding: tokens.spacingHorizontalS,
     backgroundColor: appTokens.surfacePanel,
     ...shorthands.border(appTokens.borderWidth, appTokens.borderStyle, 'var(--team-fill)'),

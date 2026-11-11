@@ -1,45 +1,18 @@
 import { Button, makeStyles, tokens } from '@fluentui/react-components';
 import { observer } from 'mobx-react-lite';
 import { useViewModel } from '@/app/useViewModel';
-import { appTokens } from '@/theme/appTokens';
+import { usePageStyles } from '@/components/usePageStyles';
 import { EventAdminViewModel } from './EventAdminViewModel';
 import { FinalizeDialog } from './FinalizeDialog';
+import { LARGE_TAP_TARGET } from '@/components/sizes';
 
 const useStyles = makeStyles({
-  page: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: tokens.spacingVerticalL,
-  },
-  heading: {
-    margin: 0,
-    fontFamily: appTokens.fontHeading,
-    // Explicit, or the browser's 1.5em default outgrows the inherited line height and a wrapped heading overlaps itself.
-    fontSize: tokens.fontSizeBase600,
-    lineHeight: tokens.lineHeightBase600,
-  },
-  sectionHeading: {
-    margin: 0,
-    fontFamily: appTokens.fontHeading,
-    fontSize: tokens.fontSizeBase500,
-    lineHeight: tokens.lineHeightBase500,
-  },
-  section: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: tokens.spacingVerticalM,
-  },
   text: {
     margin: 0,
     overflowWrap: 'anywhere',
   },
-  hint: {
-    margin: 0,
-    color: appTokens.textMuted,
-    overflowWrap: 'anywhere',
-  },
   button: {
-    minHeight: '64px',
+    minHeight: LARGE_TAP_TARGET,
     width: '100%',
     fontSize: tokens.fontSizeBase500,
   },
@@ -49,13 +22,14 @@ const useStyles = makeStyles({
 export const AdminEventPage = observer(function AdminEventPage() {
   const vm = useViewModel((services) => new EventAdminViewModel(services.archive));
   const styles = useStyles();
+  const page = usePageStyles();
 
   return (
-    <div className={styles.page}>
-      <h1 className={styles.heading}>Event</h1>
+    <div className={page.page}>
+      <h1 className={page.title}>Event</h1>
 
-      <section className={styles.section} aria-labelledby="finalize-heading">
-        <h2 id="finalize-heading" className={styles.sectionHeading}>
+      <section className={page.section} aria-labelledby="finalize-heading">
+        <h2 id="finalize-heading" className={page.sectionTitle}>
           Finalize
         </h2>
         <p className={styles.text}>
@@ -72,12 +46,12 @@ export const AdminEventPage = observer(function AdminEventPage() {
         )}
       </section>
 
-      <section className={styles.section} aria-labelledby="export-heading">
-        <h2 id="export-heading" className={styles.sectionHeading}>
+      <section className={page.section} aria-labelledby="export-heading">
+        <h2 id="export-heading" className={page.sectionTitle}>
           Export
         </h2>
         {vm.exportUrl === undefined ? (
-          <p className={styles.hint}>Finalize the event first, then the file can be downloaded here.</p>
+          <p className={page.hint}>Finalize the event first, then the file can be downloaded here.</p>
         ) : (
           <>
             {/* A real link, so the browser downloads the file itself: it holds real names, and the app never touches it. */}
@@ -90,7 +64,7 @@ export const AdminEventPage = observer(function AdminEventPage() {
             >
               Download {vm.exportFileName}
             </Button>
-            <p className={styles.hint}>The file contains everyone&apos;s real names. Keep it somewhere private.</p>
+            <p className={page.hint}>The file contains everyone&apos;s real names. Keep it somewhere private.</p>
           </>
         )}
       </section>

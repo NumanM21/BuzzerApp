@@ -5,6 +5,7 @@ import type { RouteAccess } from '@/domain/routeAccess';
 import { ThemeSplash } from '@/theme/ThemeRoot';
 import { RouteGuardViewModel } from './RouteGuardViewModel';
 import { useViewModel } from './useViewModel';
+import { TAP_TARGET } from '@/components/sizes';
 
 const useStyles = makeStyles({
   unreachable: {
@@ -15,7 +16,7 @@ const useStyles = makeStyles({
     padding: tokens.spacingHorizontalL,
   },
   retry: {
-    minHeight: '44px',
+    minHeight: TAP_TARGET,
   },
 });
 

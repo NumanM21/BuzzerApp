@@ -3,6 +3,7 @@ import { observer } from 'mobx-react-lite';
 import { useId } from 'react';
 import { appTokens } from '@/theme/appTokens';
 import { useTeamVisual } from '@/theme/useTeamVisual';
+import { TAP_TARGET } from './sizes';
 
 export interface TeamStylePickerProps {
   legend: string;
@@ -41,7 +42,7 @@ const useStyles = makeStyles({
     alignItems: 'center',
     gap: tokens.spacingHorizontalS,
     minWidth: 0,
-    minHeight: '44px',
+    minHeight: TAP_TARGET,
     padding: tokens.spacingHorizontalS,
     cursor: 'pointer',
     backgroundColor: appTokens.surfacePanel,

@@ -2,15 +2,14 @@ import { Button, Menu, MenuItem, MenuList, MenuPopover, MenuTrigger, makeStyles 
 import { EditRegular, MoreVerticalRegular } from '@fluentui/react-icons';
 import { observer } from 'mobx-react-lite';
 import type { TeamsViewModel } from './TeamsViewModel';
-
-const tapTarget = '44px';
+import { TAP_TARGET } from '@/components/sizes';
 
 const useStyles = makeStyles({
   // Icon-only buttons still get a finger-sized target; the accessible name says what each one is for.
   button: {
     flexShrink: 0,
-    minWidth: tapTarget,
-    minHeight: tapTarget,
+    minWidth: TAP_TARGET,
+    minHeight: TAP_TARGET,
   },
 });
 

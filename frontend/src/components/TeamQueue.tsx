@@ -5,6 +5,7 @@ import type { TeamTurnStatus } from '@/domain/round';
 import { appTokens } from '@/theme/appTokens';
 import { useTeamVisual } from '@/theme/useTeamVisual';
 import { useCopy } from '@/theme/useThemePack';
+import { TAP_TARGET } from './sizes';
 
 export interface TeamQueueProps {
   /** In buzz order, as the server sent them. */
@@ -31,7 +32,7 @@ const useStyles = makeStyles({
     display: 'flex',
     alignItems: 'center',
     gap: tokens.spacingHorizontalM,
-    minHeight: '44px',
+    minHeight: TAP_TARGET,
     padding: tokens.spacingHorizontalS,
     backgroundColor: appTokens.surfacePanel,
     ...shorthands.border(appTokens.borderWidth, appTokens.borderStyle, 'var(--team-fill)'),

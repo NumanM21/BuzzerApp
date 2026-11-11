@@ -13,6 +13,7 @@ import {
 } from '@fluentui/react-components';
 import { observer } from 'mobx-react-lite';
 import type { FormEvent, ReactNode } from 'react';
+import { TAP_TARGET } from './sizes';
 
 export interface FormDialogProps {
   title: string;
@@ -29,8 +30,6 @@ export interface FormDialogProps {
   children: ReactNode;
 }
 
-const tapTarget = '44px';
-
 const useStyles = makeStyles({
   content: {
     display: 'flex',
@@ -38,7 +37,7 @@ const useStyles = makeStyles({
     gap: tokens.spacingVerticalM,
   },
   button: {
-    minHeight: tapTarget,
+    minHeight: TAP_TARGET,
   },
 });
 

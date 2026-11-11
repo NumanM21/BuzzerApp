@@ -11,33 +11,12 @@ import {
 import { observer } from 'mobx-react-lite';
 import { useViewModel } from '@/app/useViewModel';
 import { TeamQueue } from '@/components/TeamQueue';
+import { usePageStyles } from '@/components/usePageStyles';
 import { appTokens } from '@/theme/appTokens';
 import { HostViewModel } from './HostViewModel';
+import { LARGE_TAP_TARGET } from '@/components/sizes';
 
 const useStyles = makeStyles({
-  page: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: tokens.spacingVerticalL,
-  },
-  heading: {
-    margin: 0,
-    fontFamily: appTokens.fontHeading,
-    // Explicit, or the browser's 1.5em default outgrows the inherited line height and a wrapped heading overlaps itself.
-    fontSize: tokens.fontSizeBase600,
-    lineHeight: tokens.lineHeightBase600,
-  },
-  sectionHeading: {
-    margin: 0,
-    fontFamily: appTokens.fontHeading,
-    fontSize: tokens.fontSizeBase500,
-    lineHeight: tokens.lineHeightBase500,
-  },
-  section: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: tokens.spacingVerticalM,
-  },
   phase: {
     margin: 0,
     fontFamily: appTokens.fontHeading,
@@ -52,7 +31,7 @@ const useStyles = makeStyles({
     gap: tokens.spacingVerticalM,
   },
   button: {
-    minHeight: '64px',
+    minHeight: LARGE_TAP_TARGET,
     width: '100%',
     fontSize: tokens.fontSizeBase500,
   },
@@ -69,10 +48,6 @@ const useStyles = makeStyles({
     fontFamily: appTokens.fontNumeric,
     fontSize: tokens.fontSizeHero700,
     lineHeight: tokens.lineHeightHero700,
-  },
-  hint: {
-    margin: 0,
-    color: appTokens.textMuted,
   },
   buzzList: {
     display: 'flex',
@@ -98,10 +73,11 @@ const useStyles = makeStyles({
 export const AdminPage = observer(function AdminPage() {
   const vm = useViewModel((services) => new HostViewModel(services.round, services.clock, services.teams));
   const styles = useStyles();
+  const page = usePageStyles();
 
   return (
-    <div className={styles.page}>
-      <h1 className={styles.heading}>Host</h1>
+    <div className={page.page}>
+      <h1 className={page.title}>Host</h1>
 
       {vm.isConnecting ? (
         <Spinner label={vm.connectionNotice ?? 'Waiting for the first update from the game…'} />
@@ -140,7 +116,7 @@ export const AdminPage = observer(function AdminPage() {
 
       {vm.answering !== undefined && (
         <section className={styles.answering} aria-labelledby="answering-heading">
-          <h2 id="answering-heading" className={styles.sectionHeading}>
+          <h2 id="answering-heading" className={page.sectionTitle}>
             Answering now
           </h2>
           <span>
@@ -155,19 +131,19 @@ export const AdminPage = observer(function AdminPage() {
 
       {!vm.isConnecting && (
         <>
-          <section className={styles.section} aria-labelledby="queue-heading">
-            <h2 id="queue-heading" className={styles.sectionHeading}>
+          <section className={page.section} aria-labelledby="queue-heading">
+            <h2 id="queue-heading" className={page.sectionTitle}>
               Team order
             </h2>
-            {vm.queue.length === 0 ? <p className={styles.hint}>No team has buzzed yet.</p> : <TeamQueue rows={vm.queue} />}
+            {vm.queue.length === 0 ? <p className={page.hint}>No team has buzzed yet.</p> : <TeamQueue rows={vm.queue} />}
           </section>
 
-          <section className={styles.section} aria-labelledby="buzzes-heading">
-            <h2 id="buzzes-heading" className={styles.sectionHeading}>
+          <section className={page.section} aria-labelledby="buzzes-heading">
+            <h2 id="buzzes-heading" className={page.sectionTitle}>
               Every buzz
             </h2>
             {vm.buzzes.length === 0 ? (
-              <p className={styles.hint}>No buzzes yet.</p>
+              <p className={page.hint}>No buzzes yet.</p>
             ) : (
               <ol className={styles.buzzList}>
                 {vm.buzzes.map((buzz) => (

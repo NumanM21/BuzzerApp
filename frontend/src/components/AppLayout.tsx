@@ -21,6 +21,7 @@ import type { ReactNode } from 'react';
 import { NavLink } from 'react-router';
 import type { NavItem, NavItemKey } from '@/domain/navigation';
 import { appTokens } from '@/theme/appTokens';
+import { TAP_TARGET } from './sizes';
 
 export interface AppLayoutProps {
   eventName: string;
@@ -41,8 +42,6 @@ const navIcons: Record<NavItemKey, FluentIcon> = {
   scores: TrophyRegular,
   event: CalendarRegular,
 };
-
-const tapTarget = '44px';
 
 const useStyles = makeStyles({
   frame: {
@@ -75,7 +74,7 @@ const useStyles = makeStyles({
     color: appTokens.textMuted,
   },
   signOut: {
-    minHeight: tapTarget,
+    minHeight: TAP_TARGET,
   },
   main: {
     flexGrow: 1,
