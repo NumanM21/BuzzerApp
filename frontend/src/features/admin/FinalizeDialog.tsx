@@ -9,6 +9,7 @@ export const FinalizeDialog = observer(function FinalizeDialog({ vm }: { vm: Eve
 
   return (
     <FormDialog
+      open={vm.isConfirming}
       title="Finalize the event?"
       submitLabel="Finalize"
       isSubmitting={vm.form.isSubmitting}

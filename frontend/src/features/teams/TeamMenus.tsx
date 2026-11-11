@@ -1,4 +1,13 @@
-import { Button, Menu, MenuItem, MenuList, MenuPopover, MenuTrigger, makeStyles } from '@fluentui/react-components';
+import {
+  Button,
+  Menu,
+  MenuItem,
+  MenuList,
+  MenuPopover,
+  MenuTrigger,
+  makeStyles,
+  useRestoreFocusTarget,
+} from '@fluentui/react-components';
 import { EditRegular, MoreVerticalRegular } from '@fluentui/react-icons';
 import { observer } from 'mobx-react-lite';
 import type { TeamsViewModel } from './TeamsViewModel';
@@ -24,6 +33,8 @@ export const TeamActionsMenu = observer(function TeamActionsMenu({
   teamName: string;
 }) {
   const styles = useStyles();
+  // Marks the button as where the keyboard goes back to when the dialog it opened closes.
+  const restoreFocusTarget = useRestoreFocusTarget();
   if (!vm.isAdmin) {
     return null;
   }
@@ -31,6 +42,7 @@ export const TeamActionsMenu = observer(function TeamActionsMenu({
     <Menu>
       <MenuTrigger disableButtonEnhancement>
         <Button
+          {...restoreFocusTarget}
           className={styles.button}
           appearance="subtle"
           icon={<MoreVerticalRegular />}
@@ -58,12 +70,15 @@ export const MemberActionsControl = observer(function MemberActionsControl({
   displayName: string;
 }) {
   const styles = useStyles();
+  // Marks the button as where the keyboard goes back to when the dialog it opened closes.
+  const restoreFocusTarget = useRestoreFocusTarget();
   switch (vm.memberActions(playerId)) {
     case 'none':
       return null;
     case 'editOwnNames':
       return (
         <Button
+          {...restoreFocusTarget}
           className={styles.button}
           appearance="subtle"
           icon={<EditRegular />}
@@ -76,6 +91,7 @@ export const MemberActionsControl = observer(function MemberActionsControl({
         <Menu>
           <MenuTrigger disableButtonEnhancement>
             <Button
+              {...restoreFocusTarget}
               className={styles.button}
               appearance="subtle"
               icon={<MoreVerticalRegular />}

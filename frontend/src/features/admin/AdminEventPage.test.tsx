@@ -1,4 +1,4 @@
-import { screen, within } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { describe, expect, it } from 'vitest';
 import { createAppServices } from '@/app/AppServices';
@@ -70,8 +70,12 @@ describe('AdminEventPage', () => {
     const dialog = await screen.findByRole('dialog', { name: 'Finalize the event?' });
     await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
 
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
     expect(requests).toEqual([]);
+    // The screen is readable again, and the confirmation can be asked for a second time.
+    expect(await screen.findByRole('heading', { name: 'Event' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Finalize the event' }));
+    expect(await screen.findByRole('dialog', { name: 'Finalize the event?' })).toBeInTheDocument();
   });
 
   it('keeps the dialog open with the server’s sentence when finalizing fails', async () => {

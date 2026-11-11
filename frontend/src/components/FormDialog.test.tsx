@@ -7,7 +7,7 @@ function renderDialog(props: Partial<FormDialogProps> = {}) {
   const onSubmit = vi.fn();
   const onCancel = vi.fn();
   const result = renderWithApp(
-    <FormDialog title="Rename" submitLabel="Save" isSubmitting={false} onSubmit={onSubmit} onCancel={onCancel} {...props}>
+    <FormDialog open title="Rename" submitLabel="Save" isSubmitting={false} onSubmit={onSubmit} onCancel={onCancel} {...props}>
       <label>
         Name
         <input />

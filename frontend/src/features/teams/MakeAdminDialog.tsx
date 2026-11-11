@@ -4,11 +4,12 @@ import { useDialogStyles } from '@/components/useDialogStyles';
 import type { MakeAdminViewModel } from './MakeAdminViewModel';
 
 /** A plain warning first: promoting is a one-way step in this app. */
-export const MakeAdminDialog = observer(function MakeAdminDialog({ vm }: { vm: MakeAdminViewModel }) {
+export const MakeAdminDialog = observer(function MakeAdminDialog({ vm, open }: { vm: MakeAdminViewModel; open: boolean }) {
   const styles = useDialogStyles();
 
   return (
     <FormDialog
+      open={open}
       title={`Make ${vm.subjectName} an admin?`}
       submitLabel="Make admin"
       isSubmitting={vm.form.isSubmitting}

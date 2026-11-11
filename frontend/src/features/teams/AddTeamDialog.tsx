@@ -6,12 +6,13 @@ import type { AddTeamViewModel } from './AddTeamViewModel';
 import { useDialogStyles } from '@/components/useDialogStyles';
 
 /** Name, then a colour no team uses yet, then an icon. Colour and icon can't be changed afterwards. */
-export const AddTeamDialog = observer(function AddTeamDialog({ vm }: { vm: AddTeamViewModel }) {
+export const AddTeamDialog = observer(function AddTeamDialog({ vm, open }: { vm: AddTeamViewModel; open: boolean }) {
   const styles = useDialogStyles();
   const { fieldErrors } = vm.form;
 
   return (
     <FormDialog
+      open={open}
       title="Add a team"
       submitLabel="Add team"
       isSubmitting={vm.form.isSubmitting}

@@ -1,4 +1,13 @@
-import { Button, MessageBar, MessageBarActions, MessageBarBody, Spinner, makeStyles, tokens } from '@fluentui/react-components';
+import {
+  Button,
+  MessageBar,
+  MessageBarActions,
+  MessageBarBody,
+  Spinner,
+  makeStyles,
+  tokens,
+  useRestoreFocusTarget,
+} from '@fluentui/react-components';
 import { AddRegular } from '@fluentui/react-icons';
 import { observer } from 'mobx-react-lite';
 import { useViewModel } from '@/app/useViewModel';
@@ -37,13 +46,15 @@ export const TeamsPage = observer(function TeamsPage() {
   );
   const styles = useStyles();
   const page = usePageStyles();
+  // Where the keyboard goes back to when the "Add team" dialog closes.
+  const restoreFocusTarget = useRestoreFocusTarget();
 
   return (
     <div className={page.page}>
       <div className={styles.header}>
         <h1 className={page.title}>Teams</h1>
         {vm.isAdmin && (
-          <Button className={styles.addButton} icon={<AddRegular />} onClick={vm.openAddTeam}>
+          <Button {...restoreFocusTarget} className={styles.addButton} icon={<AddRegular />} onClick={vm.openAddTeam}>
             Add team
           </Button>
         )}
