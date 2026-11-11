@@ -2,7 +2,7 @@
 
 > **Audience:** AI workers implementing one step each in a fresh session, and the developer who starts and reviews them.
 > Adds implementation detail to `docs/PlanMVP.md` §10 Milestone F. **PlanMVP wins on product decisions; this file wins on frontend implementation detail.**
-> Written 10 Nov 2026. **F0–F5 are done: start at F6.**
+> Written 10 Nov 2026. **F0–F6 are done: start at F7.**
 >
 > The backend is finished and is not changed by these steps. If a step seems to need a backend change, stop and ask the developer.
 
@@ -14,7 +14,7 @@
 | F3 | `frontend-f3` — **DONE** | Sonnet 5.5 | `/join` (new player / sign in), route guards, layout shell + navigation |
 | F4 | `frontend-f4` — **DONE** | **Opus 5.5** | SignalR connection, round store, server clock, session and connection lifecycle, buzzer state rule |
 | F5 | `frontend-f5` — **DONE** | Sonnet 5.5 | `/play`: buzzer and team queue |
-| F6 | `frontend-f6` | Sonnet 5.5 | `/teams`: team cards, edit names, rename, move, make admin, create and delete team |
+| F6 | `frontend-f6` — **DONE** | Sonnet 5.5 | `/teams`: team cards, edit names, rename, move, make admin, create and delete team |
 | F7 | `frontend-f7` | Sonnet 5.5 | `/scores` leaderboard; `/admin/scores` adjustments and undo |
 | F8 | `frontend-f8` | Sonnet 5.5 | `/admin` host screen; `/admin/event` finalize and export |
 | F9 | `frontend-f9` | **Fable** | Whole-frontend review, live walkthrough against the real backend, fixes |
@@ -661,7 +661,31 @@ Teams and players change every year: 2026 has six teams; another year may have t
 
 ---
 
-## F6 — Teams
+## F6 — Teams — DONE
+
+> **Done 11 Nov 2026. Kept for reference; do not redo.**
+>
+> **What exists** (`frontend/src/`)
+> - `domain/`: `validation.ts` gained `validateTeamName` (2–24 after trimming); `nameEdits.ts` (`changedNames(original, edited)`: only the names that changed, compared after trimming, so an unchanged edit sends nothing); `teamChoices.ts` (`otherTeams`, `freeColorKeys`); `round.ts` gained `isRoundRunning(snapshot)`; `text.ts` gained `isColourTakenMessage` and `ROUND_RUNNING_NOTE`. All tested.
+> - `mvvm/FormSubmission.ts` (+ test): `readFailure(reason, fields, fieldForConflict?)` turns a thrown `ApiError` into per-field messages plus a form message (a `400` by field name; a `409` onto the field its sentence concerns), and `FormSubmission<Field>` is the check → send → show-errors cycle every dialog repeats (`submit()` resolves `true` only when the server accepted; never rejects; ignores a second call while running; `fieldEdited(field)` clears that field's message).
+> - `features/teams/`: `TeamsViewModel` (cards, `state`, `loadError`, `memberActions(playerId)` = `'none' | 'editOwnNames' | 'manage'`, the open `dialog`, one `open…` method per dialog), one view model per dialog (`EditNamesViewModel`, `RenameTeamViewModel`, `MovePlayerViewModel`, `MakeAdminViewModel`, `AddTeamViewModel`, `DeleteTeamViewModel`), their views (`*Dialog.tsx`), `TeamsDialogs.tsx` (draws the open one), `TeamMenus.tsx` (the card's ⋮, the member's ✎ or ⋮) and `TeamsPage.tsx` (replaces the placeholder; same export). Each view model has a test; `TeamsPage.test.tsx` has the MSW flows: an admin renames a team, adds a team, is refused deleting a team with players; a player edits their own display name and sees no admin controls.
+> - `components/`: `FormDialog` (title, note, fields, the form's error, Cancel / confirm; Enter submits), `TeamStylePicker` (radio cards for a pack's colours or icons; each carries its key as text), `useDialogStyles` (the text-box size the dialogs share); each with a test. `test/teamsScenario.ts`: `createTeamsScenario({ viewer, teamCount, membersPerTeam })` (signed-in viewer, loaded teams, real names as the server gives them) and `startRound(fakes)`.
+>
+> **Deviations and decisions**
+> - **`TeamsViewModel` builds the dialog view models** and holds the one open `dialog` (a union with a `kind`), handing each the store and a way to close itself. The dialog views take their view model as a prop, so no dialog needs the route or the services. Opening a dialog the viewer may not use (a player's `openRenameTeam`, someone else's row) does nothing: the rule is in the view model, not only in what the view draws.
+> - **`FormSubmission` is new** (not in the brief): five dialogs share the same validate / send / map-the-error cycle, and it is tested once. `JoinViewModel` still has its own copy of the field-error mapping from F3; it was not moved onto `readFailure`, to keep this step's diff to the Teams screen. F7's entry form should use `FormSubmission`.
+> - **Which field a `409` belongs to is read from the server's sentence** (as F3 does for "real name"): for names, "real name" → real name field, otherwise display name; for a new team, "colour" → colour, otherwise name; a rename's only `409` is the name. If the backend wording changes, `isRealNameTakenMessage` / `isColourTakenMessage` and their tests change.
+> - **Add team** preselects the first free colour and the first icon (a host adding a team on the night can just type a name); the choice is a getter, so a colour another admin takes meanwhile moves the selection to the next free one. When no colour is free the dialog says so and drops the confirm button. The pack's keys come from `AppServices.themes` for the event's `themeKey` (an unknown or missing key gives the default pack's keys, as the registry does). The picker lives in `components/` (`TeamStylePicker`) and is given plain strings.
+> - **Delete is always offered**: only the server knows about scores and buzz history, and its `409` sentence is shown in the dialog.
+> - **Move** reuses `TeamPicker` (the join screen's radio cards) with the other teams and their head counts; with a single team the dialog says there is nowhere to move to. **Edit names** prefills both names (an admin gets every real name from the server; a null real name starts an empty box that sends nothing unless typed in) and sends only what changed; nothing changed → closes without a request. **Rename** also closes without a request when the name is unchanged.
+> - The "a round is running; applies from the next round" note (D13) is on Edit names, Rename and Move, read through a function each time so it appears if a round begins while the dialog is open.
+> - Fluent is only allowed in `.tsx` files and `components/`, so the shared text-box style is `components/useDialogStyles.ts`, not a file in the feature.
+> - No demote and no remove-player UI, as the brief says. An admin is on no card, so an admin never gets ✎ on their own names (the signed-in admin's own names have no screen in the MVP).
+> - **Checked:** lint, build, tests (1024). **Not checked** (no browser, and manual testing is deferred): the brief's two-device Check (a rename or own-name edit appearing on a second phone without a refresh, against the real backend); moving a player; making a second admin and signing in as them; the look of the cards, menus and dialogs at 360 px, in the arcade pack (Press Start 2P in the dialog titles and the picker labels), with 13 teams and 24-character names; focus returning to the ⋮ button after a dialog closes; the spare colours next to the six.
+>
+> **Later steps must know**
+> - **F7:** use `FormSubmission` (`mvvm/FormSubmission.ts`) for the adjustment entry (fields `amount`, `multiplier`, `targetId`, `reason` map straight onto the server's `400` field names; for the undo's `409`, show the text and reload). `FormDialog` is there if an undo needs a confirmation.
+> - **F8:** `FormDialog` suits the Finalize confirmation. `isRoundRunning(snapshot)` is in `domain/round.ts`.
 
 **Model:** Sonnet 5.5. **Read also:** PlanMVP §9.4, D17, D19–D21; Appendix A "Teams" and "Players".
 
@@ -984,3 +1008,8 @@ End-to-end tests are a later addition (PlanMVP §11). Each step appends the scen
 | F5 | One tap on the buzzer sends one buzz (also a fast double tap), and the button reads "Sent" before the next snapshot | `pointerdown` and touch only behave for real on a touch screen |
 | F5 | With `prefers-reduced-motion` the ready and your-team-up buzzer don't pulse or blink | Media-query emulation needs a real browser |
 | F5 | Cut the network while the buzzer is ready, press (nothing is sent, notice shows), restore: the buzzer is pressable again without a reload | Real socket loss and recovery |
+| F6 | Rename a team (or edit a display name) on one phone: a second phone on /teams shows it without a refresh | Needs two real sessions, a real hub and `TeamsChanged`; the tests fake the hub |
+| F6 | A player opens /admin routes and tries the admin actions through the DOM or by calling the API: nothing is offered and the server refuses | The route guard and the server's `403`, with a real cookie |
+| F6 | Keyboard only on /teams as an admin: open a ⋮ menu, pick Move to…, choose a team, confirm; focus returns to the ⋮ button | Fluent's menu and dialog focus handling only exist in a real browser |
+| F6 | /teams at 360 px with 13 teams, 24-character team names and 20-character display names, in both packs: no horizontal scroll, menus and dialogs fit, the Add team picker reads well | Layout and Press Start 2P glyph widths only exist in a real rendering engine |
+| F6 | Add a team with a spare colour on one phone: it appears on a second phone and in the join screen's team list, with that colour | A real create, a real hub message and the join route's list |
