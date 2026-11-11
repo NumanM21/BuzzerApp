@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { makeTeamQueue } from '@/test/factories';
-import { buildQueueRows, UNKNOWN_TEAM_KEY, type TeamLook } from './queueRows';
+import { buildQueueRows, teamLooksById, UNKNOWN_TEAM_KEY, type TeamLook } from './queueRows';
 
 function looksFor(teamIds: readonly number[]): Map<number, TeamLook> {
   return new Map(teamIds.map((id) => [id, { colorKey: `color-${id}`, iconKey: `icon-${id}` }]));
@@ -58,5 +58,27 @@ describe('buildQueueRows', () => {
 
   it('is empty for an empty queue', () => {
     expect(buildQueueRows([], 1, looksFor([1]))).toEqual([]);
+  });
+});
+
+describe('teamLooksById', () => {
+  it.each([0, 1, 6, 13])('gives every one of %i teams its own colour and icon key', (count) => {
+    const teams = Array.from({ length: count }, (_, index) => ({
+      id: index + 1,
+      name: `Team ${index + 1}`,
+      colorKey: `colour-${index + 1}`,
+      iconKey: `icon-${index + 1}`,
+    }));
+
+    const looks = teamLooksById(teams);
+
+    expect(looks.size).toBe(count);
+    for (const team of teams) {
+      expect(looks.get(team.id)).toEqual({ colorKey: team.colorKey, iconKey: team.iconKey });
+    }
+  });
+
+  it('knows nothing of a team that is not in the list', () => {
+    expect(teamLooksById([{ id: 1, colorKey: 'colour-1', iconKey: 'icon-1' }]).get(2)).toBeUndefined();
   });
 });
