@@ -597,7 +597,7 @@ frontend/src/
 | O8 | **Score phases** | Nullable `Category`/`PhaseId` on `ScoreAdjustment`; phases with fixed point budgets |
 | O5 | **Store apps** | Wrap the React app with Capacitor. Apple $99/yr, Google $25 once |
 | O9 | **PWA install / offline** | `vite-plugin-pwa` with a service worker. **Cache the app shell only, never `/api` or `/hubs`**, with auto-update. Left out of the MVP on purpose (D1): test thoroughly before an event if added |
-| O10 | **Playwright end-to-end tests** | Start from the backlog in `docs/FrontendSteps.md` Appendix B (multi-device sync, reconnect after a restart, a full round). Needs the API and a database in CI |
+| O10 | **Playwright end-to-end tests** | Start from the backlog in `docs/FrontendSteps.md` Appendix B (it names the five to automate first) and from the draft script in `docs/playwright-draft/` (F9's live walkthrough: a full evening on six devices, 106 checks; a script, not yet a suite). Needs the API and a database in CI |
 
 **Deadline note:** MVP + O0 + one more by 18 Dec is realistic. Treat the rest as 2027 work.
 
