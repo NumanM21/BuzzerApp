@@ -1,4 +1,5 @@
 import { makeStyles } from '@fluentui/react-components';
+import { TAP_TARGET } from './sizes';
 
 export interface ErrorScreenProps {
   /** Starts the app again; the only way out when a file of the app itself failed to arrive. */
@@ -25,7 +26,7 @@ const useStyles = makeStyles({
     margin: 0,
   },
   button: {
-    minHeight: '44px',
+    minHeight: TAP_TARGET,
     padding: '0 1.25rem',
     fontSize: '1rem',
     cursor: 'pointer',

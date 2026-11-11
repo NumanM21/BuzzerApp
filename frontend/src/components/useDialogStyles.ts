@@ -1,6 +1,5 @@
 import { makeStyles, tokens } from '@fluentui/react-components';
-
-const tapTarget = '44px';
+import { TAP_TARGET } from './sizes';
 
 /** Styles the small team dialogs share, so a text box looks and sizes the same in every one. */
 export const useDialogStyles = makeStyles({
@@ -8,7 +7,7 @@ export const useDialogStyles = makeStyles({
   input: {
     width: '100%',
     maxWidth: 'none',
-    minHeight: tapTarget,
+    minHeight: TAP_TARGET,
   },
   // A 24-character team name in a wide font must wrap rather than widen the dialog.
   paragraph: {

@@ -16,10 +16,10 @@ import type { FormEvent } from 'react';
 import { useSearchParams } from 'react-router';
 import { useViewModel } from '@/app/useViewModel';
 import { TeamPicker } from '@/components/TeamPicker';
+import { usePageStyles } from '@/components/usePageStyles';
 import { appTokens } from '@/theme/appTokens';
 import { JoinViewModel } from './JoinViewModel';
-
-const tapTarget = '44px';
+import { TAP_TARGET } from '@/components/sizes';
 
 const useStyles = makeStyles({
   page: {
@@ -36,16 +36,8 @@ const useStyles = makeStyles({
     color: appTokens.textMuted,
     overflowWrap: 'anywhere',
   },
-  heading: {
-    margin: 0,
-    fontFamily: appTokens.fontHeading,
-    // Explicit, or the browser's 1.5em default outgrows the inherited line height and a wrapped heading overlaps itself.
-    fontSize: tokens.fontSizeBase600,
-    lineHeight: tokens.lineHeightBase600,
-    overflowWrap: 'anywhere',
-  },
   tab: {
-    minHeight: tapTarget,
+    minHeight: TAP_TARGET,
   },
   form: {
     display: 'flex',
@@ -56,7 +48,7 @@ const useStyles = makeStyles({
   input: {
     width: '100%',
     maxWidth: 'none',
-    minHeight: tapTarget,
+    minHeight: TAP_TARGET,
   },
   codeRow: {
     display: 'flex',
@@ -69,11 +61,7 @@ const useStyles = makeStyles({
     flexBasis: '12rem',
   },
   button: {
-    minHeight: tapTarget,
-  },
-  hint: {
-    margin: 0,
-    color: appTokens.textMuted,
+    minHeight: TAP_TARGET,
   },
   fieldError: {
     margin: 0,
@@ -90,6 +78,7 @@ export const JoinPage = observer(function JoinPage() {
       new JoinViewModel(services.session, services.eventApi, services.event, services.joinCodeMemory, urlCode),
   );
   const styles = useStyles();
+  const page = usePageStyles();
 
   const onSubmit = (event: FormEvent) => {
     event.preventDefault();
@@ -97,10 +86,10 @@ export const JoinPage = observer(function JoinPage() {
   };
 
   return (
-    <main className={styles.page}>
+    <main className={page.page}>
       <div>
         {vm.eventName && <p className={styles.eventName}>{vm.eventName}</p>}
-        <h1 className={styles.heading}>Join the game</h1>
+        <h1 className={page.title}>Join the game</h1>
       </div>
 
       <TabList selectedValue={vm.tab} onTabSelect={(_, data) => vm.selectTab(data.value)} size="large">
@@ -207,6 +196,7 @@ export const JoinPage = observer(function JoinPage() {
 
 const TeamSection = observer(function TeamSection({ vm }: { vm: JoinViewModel }) {
   const styles = useStyles();
+  const page = usePageStyles();
   const teamError = vm.fieldErrors.teamId;
 
   switch (vm.pickerState) {
@@ -223,7 +213,7 @@ const TeamSection = observer(function TeamSection({ vm }: { vm: JoinViewModel })
     case 'loading':
       return <Spinner label="Loading the teams" />;
     case 'empty':
-      return <p className={styles.hint}>This event has no teams yet. Ask the host.</p>;
+      return <p className={page.hint}>This event has no teams yet. Ask the host.</p>;
     case 'error':
       return (
         <MessageBar intent="error">
@@ -233,7 +223,7 @@ const TeamSection = observer(function TeamSection({ vm }: { vm: JoinViewModel })
     case 'needsCode':
       return (
         <>
-          <p className={styles.hint}>Enter the join code and press Continue to choose your team.</p>
+          <p className={page.hint}>Enter the join code and press Continue to choose your team.</p>
           {teamError && <p className={styles.fieldError}>{teamError}</p>}
         </>
       );

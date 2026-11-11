@@ -3,6 +3,7 @@ import { observer } from 'mobx-react-lite';
 import { appTokens } from '@/theme/appTokens';
 import { useFormatScore } from '@/theme/useThemePack';
 import type { AdminScoresViewModel } from './AdminScoresViewModel';
+import { TAP_TARGET } from '@/components/sizes';
 
 const useStyles = makeStyles({
   section: {
@@ -32,7 +33,7 @@ const useStyles = makeStyles({
     display: 'flex',
     alignItems: 'center',
     gap: tokens.spacingHorizontalM,
-    minHeight: '44px',
+    minHeight: TAP_TARGET,
     padding: tokens.spacingHorizontalS,
     backgroundColor: appTokens.surfacePanel,
     ...shorthands.border(appTokens.borderWidth, appTokens.borderStyle, appTokens.surfacePanelBorder),

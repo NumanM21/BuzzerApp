@@ -1,8 +1,9 @@
-import { MessageBar, MessageBarBody, makeStyles, tokens } from '@fluentui/react-components';
+import { MessageBar, MessageBarBody, makeStyles, mergeClasses, tokens } from '@fluentui/react-components';
 import { observer } from 'mobx-react-lite';
 import { useViewModel } from '@/app/useViewModel';
 import { Buzzer } from '@/components/Buzzer';
 import { TeamQueue } from '@/components/TeamQueue';
+import { usePageStyles } from '@/components/usePageStyles';
 import { appTokens } from '@/theme/appTokens';
 import { buzzerCopyKeys } from '@/theme/defaultCopy';
 import { useCopy } from '@/theme/useThemePack';
@@ -34,17 +35,9 @@ const useStyles = makeStyles({
     overflowWrap: 'anywhere',
     color: appTokens.textMuted,
   },
+  // The page centres its children (the buzzer); the queue takes the full width.
   queue: {
     alignSelf: 'stretch',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: tokens.spacingVerticalM,
-  },
-  heading: {
-    margin: 0,
-    fontFamily: appTokens.fontHeading,
-    fontSize: tokens.fontSizeBase500,
-    lineHeight: tokens.lineHeightBase500,
   },
 });
 
@@ -52,6 +45,7 @@ const useStyles = makeStyles({
 export const PlayPage = observer(function PlayPage() {
   const vm = useViewModel((services) => new PlayViewModel(services.round, services.session, services.teams));
   const styles = useStyles();
+  const page = usePageStyles();
   const copy = useCopy();
 
   return (
@@ -77,8 +71,8 @@ export const PlayPage = observer(function PlayPage() {
         </MessageBar>
       )}
       {vm.queue.length > 0 && (
-        <section className={styles.queue}>
-          <h2 className={styles.heading}>Team order</h2>
+        <section className={mergeClasses(page.section, styles.queue)}>
+          <h2 className={page.sectionTitle}>Team order</h2>
           <TeamQueue rows={vm.queue} />
         </section>
       )}
