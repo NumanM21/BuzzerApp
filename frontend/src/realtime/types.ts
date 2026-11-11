@@ -2,6 +2,7 @@ import type { RoundPhase, TeamQueueEntry } from '@/domain/round';
 
 // The hub's messages (FrontendSteps Appendix A, "Hub"), exactly as they arrive. Dates are ISO strings.
 
+export type { ConnectionState } from '@/domain/connectionNotice';
 export type { RoundPhase, TeamQueueEntry, TeamTurnStatus } from '@/domain/round';
 
 /** Sent to everyone after every change, and once to each connection when it connects. */
@@ -50,5 +51,3 @@ export interface RoundResult {
   changed: boolean;
 }
 
-/** The live connection as a person would describe it. */
-export type ConnectionState = 'disconnected' | 'connecting' | 'connected' | 'reconnecting';
