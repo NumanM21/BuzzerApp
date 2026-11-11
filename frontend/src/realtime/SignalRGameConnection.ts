@@ -1,8 +1,8 @@
-import { HubConnectionBuilder, LogLevel, type IRetryPolicy } from '@microsoft/signalr';
+import { HubConnectionBuilder, LogLevel } from '@microsoft/signalr';
 import type { GameConnection } from './GameConnection';
 import type { Unsubscribe } from './GameEvents';
 import { ListenerSet } from './ListenerSet';
-import { retryDelayMs } from './retryDelays';
+import { reconnectPolicy, retryDelayMs } from './retryDelays';
 import type { AdminRoundSnapshot, ConnectionState, PublicRoundSnapshot, RoundResult } from './types';
 
 /** The part of SignalR's `HubConnection` this class uses, so a test can stand in a stub. */
@@ -16,22 +16,18 @@ export interface HubConnectionLike {
   onreconnected(callback: (connectionId?: string) => void): void;
 }
 
-export type HubFactory = () => HubConnectionLike;
+/** Builds a hub connection. It must call `onReconnectAttemptFailed` whenever one of its own reconnect tries fails. */
+export type HubFactory = (onReconnectAttemptFailed: () => void) => HubConnectionLike;
 
 // Same origin as the page (the API serves the app; in development Vite's proxy forwards it), so the browser sends
 // the session cookie by itself.
 const HUB_URL = '/hubs/game';
 
-// SignalR's own reconnect, with delays that never run out (its default stops after four tries).
-const keepTrying: IRetryPolicy = {
-  nextRetryDelayInMilliseconds: (context) => retryDelayMs(context.previousRetryCount),
-};
-
 /** A new SignalR connection to the game hub. One per `start()`, so nothing from an old one can leak into the next. */
-export function createGameHub(): HubConnectionLike {
+export function createGameHub(onReconnectAttemptFailed: () => void): HubConnectionLike {
   return new HubConnectionBuilder()
     .withUrl(HUB_URL)
-    .withAutomaticReconnect(keepTrying)
+    .withAutomaticReconnect(reconnectPolicy(onReconnectAttemptFailed))
     .configureLogging(LogLevel.Warning)
     .build();
 }
@@ -44,9 +40,12 @@ type HubMethod = 'Buzz' | 'BeginRound' | 'NextTeam' | 'ResetRound';
  * - **Exactly one live connection.** Every `start()` builds a new `HubConnection`. `hub` is the current one, and a
  *   callback from any other (stopped, or replaced) is ignored, so a late message or `onclose` can't do harm. A new
  *   connection waits until every connection being stopped has closed before it connects.
- * - **Never gives up.** SignalR reconnects a dropped connection by itself (with `keepTrying`), but it doesn't retry a
- *   failed first start, and it gives up if the server closes the connection for good. Both are retried here, with
- *   the same delays, for as long as the app wants the connection (`wanted`).
+ * - **Never gives up.** SignalR reconnects a dropped connection by itself (with `reconnectPolicy`), but it doesn't
+ *   retry a failed first start, and it gives up if the server closes the connection for good. Both are retried here,
+ *   with the same delays, for as long as the app wants the connection (`wanted`).
+ * - **Says when a try fails.** It keeps trying whatever the reason, but one reason can't be waited out: the session
+ *   has ended, and the server refuses the connection every time. So each failed try is reported (`onAttemptFailed`)
+ *   and whoever listens can ask the server whether the person is still signed in.
  * - **No unhandled rejections.** A start that fails or is cancelled by `stop()` is caught here.
  *
  * React's StrictMode (start, stop, start in quick succession) is therefore one connection that connects once the
@@ -59,6 +58,7 @@ export class SignalRGameConnection implements GameConnection {
   private readonly teamsChanged = new ListenerSet();
   private readonly scoresChanged = new ListenerSet();
   private readonly reconnected = new ListenerSet();
+  private readonly attemptFailed = new ListenerSet();
   private readonly stateChanged = new ListenerSet<ConnectionState>();
 
   private currentState: ConnectionState = 'disconnected';
@@ -145,12 +145,20 @@ export class SignalRGameConnection implements GameConnection {
     return this.reconnected.add(callback);
   }
 
+  onAttemptFailed(callback: () => void): Unsubscribe {
+    return this.attemptFailed.add(callback);
+  }
+
   onStateChanged(callback: (state: ConnectionState) => void): Unsubscribe {
     return this.stateChanged.add(callback);
   }
 
   private async connect(): Promise<void> {
-    const hub = this.createHub();
+    const hub: HubConnectionLike = this.createHub(() => {
+      if (hub === this.hub) {
+        this.attemptFailed.emit();
+      }
+    });
     this.hub = hub;
     this.listen(hub);
     // Before `hub.start()`: the server sends a snapshot as soon as the connection is up, possibly before `start()`
@@ -168,6 +176,7 @@ export class SignalRGameConnection implements GameConnection {
         this.hub = undefined;
         this.setState('disconnected');
         this.scheduleRetry();
+        this.attemptFailed.emit();
       }
       return;
     }
@@ -213,7 +222,7 @@ export class SignalRGameConnection implements GameConnection {
         this.reconnected.emit();
       }
     });
-    // With `keepTrying`, SignalR closes a connection only when told to, or when the server ends it for good.
+    // With `reconnectPolicy`, SignalR closes a connection only when told to, or when the server ends it for good.
     hub.onclose(() => {
       if (isCurrent()) {
         this.hub = undefined;

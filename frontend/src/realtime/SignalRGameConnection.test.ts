@@ -20,10 +20,16 @@ class StubHub implements HubConnectionLike {
   slowStop: Deferred<void> | undefined = undefined;
 
   private pendingStart: Deferred<void> | undefined = undefined;
+  private readonly reconnectAttemptFailed: () => void;
   private readonly handlers = new Map<string, (payload: unknown) => void>();
   private closed: ((error?: Error) => void) | undefined = undefined;
   private reconnecting: ((error?: Error) => void) | undefined = undefined;
   private reconnected: ((connectionId?: string) => void) | undefined = undefined;
+
+  /** `reconnectAttemptFailed` is what the connection hands every hub it builds, for SignalR's retry policy to call. */
+  constructor(reconnectAttemptFailed: () => void) {
+    this.reconnectAttemptFailed = reconnectAttemptFailed;
+  }
 
   start(): Promise<void> {
     this.startCalls += 1;
@@ -87,6 +93,11 @@ class StubHub implements HubConnectionLike {
     this.reconnecting?.(new Error('WebSocket closed.'));
   }
 
+  /** One of SignalR's own tries to get the connection back failed (it then waits and tries again). */
+  failReconnectAttempt(): void {
+    this.reconnectAttemptFailed();
+  }
+
   completeReconnect(): void {
     this.reconnected?.('new-id');
   }
@@ -99,14 +110,18 @@ class StubHub implements HubConnectionLike {
 
 function setup() {
   const hubs: StubHub[] = [];
-  const connection = new SignalRGameConnection(() => {
-    const hub = new StubHub();
+  const connection = new SignalRGameConnection((reconnectAttemptFailed) => {
+    const hub = new StubHub(reconnectAttemptFailed);
     hubs.push(hub);
     return hub;
   });
   const states: ConnectionState[] = [];
   const reconnects = { count: 0 };
   const snapshots: PublicRoundSnapshot[] = [];
+  const failedAttempts = { count: 0 };
+  connection.onAttemptFailed(() => {
+    failedAttempts.count += 1;
+  });
   connection.onStateChanged((state) => states.push(state));
   connection.onReconnected(() => {
     reconnects.count += 1;
@@ -114,7 +129,7 @@ function setup() {
   connection.onRoundUpdated((snapshot) => snapshots.push(snapshot));
   const lastHub = () => hubs[hubs.length - 1];
   const liveHubs = () => hubs.filter((hub) => hub.isLive).length;
-  return { connection, hubs, lastHub, liveHubs, states, reconnects, snapshots };
+  return { connection, hubs, lastHub, liveHubs, states, reconnects, snapshots, failedAttempts };
 }
 
 /** Lets the connection get past waiting for earlier connections to close, to its `hub.start()`. */
@@ -368,6 +383,47 @@ describe('SignalRGameConnection', () => {
 
       expect(hubs).toHaveLength(2);
       expect(connection.state).toBe('connecting');
+    });
+  });
+
+  describe('a failed attempt is reported (the session may have ended; the coordinator asks)', () => {
+    it('for a first start the server refuses', async () => {
+      const { connection, lastHub, failedAttempts } = setup();
+      connection.start();
+      await settle();
+
+      lastHub().failStart();
+      await settle();
+
+      expect(failedAttempts.count).toBe(1);
+    });
+
+    it("for each of SignalR's own tries to get a dropped connection back", async () => {
+      const { connection, lastHub, failedAttempts } = setup();
+      connection.start();
+      await settle();
+      lastHub().acceptStart();
+      await settle();
+      lastHub().dropConnection();
+
+      lastHub().failReconnectAttempt();
+      lastHub().failReconnectAttempt();
+
+      expect(connection.state).toBe('reconnecting');
+      expect(failedAttempts.count).toBe(2);
+    });
+
+    it('not for a start that stop() cancelled, nor for anything a stopped connection says later', async () => {
+      const { connection, lastHub, failedAttempts } = setup();
+      connection.start();
+      await settle();
+      const stopped = lastHub();
+
+      await connection.stop();
+      await settle();
+      stopped.failReconnectAttempt();
+
+      expect(failedAttempts.count).toBe(0);
     });
   });
 

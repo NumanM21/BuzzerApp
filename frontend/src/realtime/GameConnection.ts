@@ -34,4 +34,9 @@ export interface GameConnection extends GameEvents {
   onRoundUpdated(callback: (snapshot: PublicRoundSnapshot) => void): Unsubscribe;
   onAdminRoundUpdated(callback: (snapshot: AdminRoundSnapshot) => void): Unsubscribe;
   onStateChanged(callback: (state: ConnectionState) => void): Unsubscribe;
+  /**
+   * A try to connect, or to get a dropped connection back, failed. The connection keeps trying; this is for whoever
+   * can tell whether trying is still worthwhile (a session that has ended is refused every time).
+   */
+  onAttemptFailed(callback: () => void): Unsubscribe;
 }
