@@ -17,6 +17,7 @@ import { useSearchParams } from 'react-router';
 import { useViewModel } from '@/app/useViewModel';
 import { TeamPicker } from '@/components/TeamPicker';
 import { usePageStyles } from '@/components/usePageStyles';
+import { useTextBoxStyles } from '@/components/useTextBoxStyles';
 import { appTokens } from '@/theme/appTokens';
 import { JoinViewModel } from './JoinViewModel';
 import { TAP_TARGET } from '@/components/sizes';
@@ -43,12 +44,6 @@ const useStyles = makeStyles({
     display: 'flex',
     flexDirection: 'column',
     gap: tokens.spacingVerticalM,
-  },
-  // Fluent caps an input at 400px; on a phone it should fill the width, and a finger needs the height.
-  input: {
-    width: '100%',
-    maxWidth: 'none',
-    minHeight: TAP_TARGET,
   },
   codeRow: {
     display: 'flex',
@@ -79,6 +74,7 @@ export const JoinPage = observer(function JoinPage() {
   );
   const styles = useStyles();
   const page = usePageStyles();
+  const textBox = useTextBoxStyles();
 
   const onSubmit = (event: FormEvent) => {
     event.preventDefault();
@@ -110,7 +106,7 @@ export const JoinPage = observer(function JoinPage() {
             validationState={vm.joinCodeError ? 'error' : 'none'}
           >
             <Input
-              className={styles.input}
+              className={textBox.textBox}
               value={vm.joinCode}
               autoComplete="off"
               autoCapitalize="off"
@@ -133,7 +129,7 @@ export const JoinPage = observer(function JoinPage() {
           validationState={vm.fieldErrors.realName ? 'error' : 'none'}
         >
           <Input
-            className={styles.input}
+            className={textBox.textBox}
             value={vm.realName}
             autoComplete="off"
             onChange={(_, data) => vm.setRealName(data.value)}
@@ -148,7 +144,7 @@ export const JoinPage = observer(function JoinPage() {
             validationState={vm.fieldErrors.displayName ? 'error' : 'none'}
           >
             <Input
-              className={styles.input}
+              className={textBox.textBox}
               value={vm.displayName}
               autoComplete="off"
               onChange={(_, data) => vm.setDisplayName(data.value)}
@@ -163,7 +159,7 @@ export const JoinPage = observer(function JoinPage() {
           validationState={vm.fieldErrors.pin ? 'error' : 'none'}
         >
           <Input
-            className={styles.input}
+            className={textBox.textBox}
             type="password"
             inputMode="numeric"
             maxLength={4}

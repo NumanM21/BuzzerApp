@@ -1,7 +1,7 @@
 import { Button, Field, Input, MessageBar, MessageBarBody, Select, makeStyles, tokens } from '@fluentui/react-components';
 import { observer } from 'mobx-react-lite';
 import { appTokens } from '@/theme/appTokens';
-import { useDialogStyles } from '@/components/useDialogStyles';
+import { useTextBoxStyles } from '@/components/useTextBoxStyles';
 import type { AdjustmentEntryViewModel } from './AdjustmentEntryViewModel';
 import { TAP_TARGET } from '@/components/sizes';
 
@@ -12,8 +12,9 @@ const useStyles = makeStyles({
     gap: tokens.spacingVerticalM,
   },
   // The two number boxes sit side by side on a phone; each is narrow enough for a few digits. `minmax(0, 1fr)`, not
-  // `1fr`: a plain `1fr` column never gets narrower than its content, and a text box asks for about twenty
-  // characters of width, so two of them pushed the page wider than a 360 px phone.
+  // `1fr`: a plain `1fr` column never gets narrower than its content, so a long label or error under one box would
+  // make the halves unequal or push the page wider than a 360 px phone. (The boxes themselves are allowed to shrink
+  // by `useTextBoxStyles`; both are needed.)
   numbers: {
     display: 'grid',
     gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)',
@@ -46,7 +47,7 @@ const useStyles = makeStyles({
 /** Pick a team or a player, an amount and a multiplier; the buttons show the result they will apply. */
 export const AdjustmentEntryForm = observer(function AdjustmentEntryForm({ vm }: { vm: AdjustmentEntryViewModel }) {
   const styles = useStyles();
-  const dialogStyles = useDialogStyles();
+  const textBox = useTextBoxStyles();
   const { fieldErrors, formError, isSubmitting } = vm.form;
 
   return (
@@ -91,7 +92,7 @@ export const AdjustmentEntryForm = observer(function AdjustmentEntryForm({ vm }:
       <div className={styles.numbers}>
         <Field label="Points" validationMessage={fieldErrors.amount} validationState={fieldErrors.amount ? 'error' : 'none'}>
           <Input
-            className={dialogStyles.input}
+            className={textBox.textBox}
             value={vm.amount}
             inputMode="numeric"
             autoComplete="off"
@@ -104,7 +105,7 @@ export const AdjustmentEntryForm = observer(function AdjustmentEntryForm({ vm }:
           validationState={fieldErrors.multiplier ? 'error' : 'none'}
         >
           <Input
-            className={dialogStyles.input}
+            className={textBox.textBox}
             value={vm.multiplier}
             inputMode="numeric"
             autoComplete="off"
@@ -119,7 +120,7 @@ export const AdjustmentEntryForm = observer(function AdjustmentEntryForm({ vm }:
         validationState={fieldErrors.reason ? 'error' : 'none'}
       >
         <Input
-          className={dialogStyles.input}
+          className={textBox.textBox}
           value={vm.reason}
           autoComplete="off"
           onChange={(_, data) => vm.setReason(data.value)}
