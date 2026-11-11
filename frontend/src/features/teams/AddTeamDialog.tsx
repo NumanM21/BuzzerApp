@@ -4,10 +4,12 @@ import { FormDialog } from '@/components/FormDialog';
 import { TeamStylePicker } from '@/components/TeamStylePicker';
 import type { AddTeamViewModel } from './AddTeamViewModel';
 import { useDialogStyles } from '@/components/useDialogStyles';
+import { useTextBoxStyles } from '@/components/useTextBoxStyles';
 
 /** Name, then a colour no team uses yet, then an icon. Colour and icon can't be changed afterwards. */
 export const AddTeamDialog = observer(function AddTeamDialog({ vm, open }: { vm: AddTeamViewModel; open: boolean }) {
   const styles = useDialogStyles();
+  const textBox = useTextBoxStyles();
   const { fieldErrors } = vm.form;
 
   return (
@@ -23,7 +25,7 @@ export const AddTeamDialog = observer(function AddTeamDialog({ vm, open }: { vm:
     >
       <Field label="Team name" validationMessage={fieldErrors.name} validationState={fieldErrors.name ? 'error' : 'none'}>
         <Input
-          className={styles.input}
+          className={textBox.textBox}
           value={vm.name}
           autoComplete="off"
           onChange={(_, data) => vm.setName(data.value)}
