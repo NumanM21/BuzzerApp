@@ -1,10 +1,13 @@
 // The server's JSON shapes (docs/FrontendSteps.md Appendix A), written exactly as the server sends them: ids are
 // numbers, dates are ISO 8601 strings (parsed where they are displayed), and a field that can be null says so.
-// The hub's round snapshots are not here: F4 defines them next to the connection that delivers them.
+// The hub's round snapshots are not here: they are in `realtime/types.ts`, next to the connection that delivers them.
 
-export type PlayerRole = 'player' | 'admin';
-export type ScoreTarget = 'team' | 'player';
-export type ScoreDirection = 'add' | 'remove';
+// The rules in domain/ are written in terms of these three, so they are defined there, once, and carry their wire
+// names here.
+import type { Role as PlayerRole } from '@/domain/routeAccess';
+import type { ScoreDirection, ScoreTargetKind as ScoreTarget } from '@/domain/scoreEntry';
+
+export type { PlayerRole, ScoreDirection, ScoreTarget };
 
 export interface EventInfo {
   name: string;
