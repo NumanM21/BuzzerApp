@@ -35,12 +35,12 @@ describe('RealtimeDebugViewModel', () => {
     expect(JSON.parse(vm.publicSnapshot)).toMatchObject({ version: 2, phase: 'open' });
   });
 
-  it('offers the buzzer to a player and the host commands to an admin', async () => {
+  it('offers the buzzer to a player and nothing to an admin, who runs the round from the host screen', async () => {
     const player = await setup(makeMe());
     const admin = await setup(makeAdminMe({ displayName: 'Host' }));
 
-    expect(player.vm.actions.map((button) => button.label)).toEqual(['Buzz']);
-    expect(admin.vm.actions.map((button) => button.label)).toEqual(['Begin', 'Next team', 'Reset']);
+    expect(player.vm.canBuzz).toBe(true);
+    expect(admin.vm.canBuzz).toBe(false);
     expect(admin.vm.identity).toBe('Host (admin)');
   });
 
@@ -52,22 +52,22 @@ describe('RealtimeDebugViewModel', () => {
     expect(JSON.parse(vm.adminSnapshot)).toMatchObject({ version: 4, buzzes: [] });
   });
 
-  it('runs a command and says what the server answered', async () => {
-    const { vm, connection } = await setup(makeAdminMe());
+  it('says what the server answered when a buzz is refused', async () => {
+    const { vm, connection } = await setup(makeMe());
     connection.setState('connected');
-    connection.answers.beginRound = { success: false, error: 'round.emptyRoster', changed: false };
+    connection.answers.buzz = { success: false, error: 'round.notOpen', changed: false };
 
-    await vm.run('beginRound');
+    await vm.buzz();
 
-    expect(connection.calls).toContain('beginRound');
-    expect(vm.lastResult).toBe('Begin: No players have joined a team yet (round.emptyRoster)');
+    expect(connection.calls).toContain('buzz');
+    expect(vm.lastResult).toBe("Buzz: Buzzing isn't open right now (round.notOpen)");
   });
 
   it('says when a command worked and changed the round', async () => {
     const { vm, connection } = await setup(makeMe());
     connection.setState('connected');
 
-    await vm.run('buzz');
+    await vm.buzz();
 
     expect(vm.lastResult).toBe('Buzz: done, round changed');
   });
