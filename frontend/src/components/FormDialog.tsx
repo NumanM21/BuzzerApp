@@ -66,7 +66,11 @@ export const FormDialog = observer(function FormDialog({
 
   const handleSubmit = (event: FormEvent) => {
     event.preventDefault();
-    onSubmit();
+    // The confirm button stays focusable while submitting (see below), so the browser still submits the form on a
+    // second tap or on Enter. Ignoring it here is what `disabled` used to do.
+    if (!isSubmitting) {
+      onSubmit();
+    }
   };
 
   return (
@@ -100,8 +104,11 @@ export const FormDialog = observer(function FormDialog({
               <Button className={styles.button} appearance="secondary" onClick={onCancel}>
                 Cancel
               </Button>
+              {/* Held (`disabledFocusable`), not `disabled`, while submitting: a disabled button drops the keyboard
+                  focus it has, and the dialog would then close with no focus to return to the button that opened
+                  it. */}
               {canSubmit && (
-                <Button className={styles.button} appearance="primary" type="submit" disabled={isSubmitting}>
+                <Button className={styles.button} appearance="primary" type="submit" disabledFocusable={isSubmitting}>
                   {submitLabel}
                 </Button>
               )}
