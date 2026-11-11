@@ -148,6 +148,35 @@ describe('ThemePreviewViewModel', () => {
     expect(members.filter((member) => member.isViewer)).toHaveLength(1);
   });
 
+  it.each([1, 2, 3, 6, 13])('queues all %i sample teams, with one answering and one marked as the viewer’s', async (count) => {
+    const { vm } = await activated();
+    vm.setTeamCount(count);
+
+    const queue = vm.sampleQueue;
+
+    expect(queue.map((row) => row.position)).toEqual(Array.from({ length: count }, (_, index) => index + 1));
+    expect(queue.filter((row) => row.status === 'current')).toHaveLength(1);
+    expect(queue.filter((row) => row.isMine)).toHaveLength(1);
+    // Queue order is not team order.
+    expect(queue.map((row) => row.teamId)).toEqual(vm.sampleTeams.map((team) => team.id).reverse());
+  });
+
+  it('leaves the last queued team out of the teams list, to show the fallback look', async () => {
+    const { vm } = await activated();
+    vm.setTeamCount(4);
+
+    const queue = vm.sampleQueue;
+
+    expect(queue.at(-1)).toMatchObject({ colorKey: '', iconKey: '' });
+    expect(queue.slice(0, -1).every((row) => row.colorKey !== '')).toBe(true);
+  });
+
+  it('has no queue until the pack keys arrive', () => {
+    const vm = new ThemePreviewViewModel(new FakeThemeCatalog(twoPacks, { manual: true }));
+
+    expect(vm.sampleQueue).toEqual([]);
+  });
+
   it('offers every buzzer state once, with a queue position only for queued', async () => {
     const { vm } = await activated();
 
