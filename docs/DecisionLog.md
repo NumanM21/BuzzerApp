@@ -7,6 +7,18 @@ Earlier history, before this file existed: the "Changed …" notes inside `PlanM
 
 ---
 
+## 11 Nov 2026 — Manual testing deferred to the end
+
+**Decided by:** the developer, during F5.
+
+| # | Change | Why |
+|---|---|---|
+| 1 | **No manual testing until every B and F step is complete, just before deployment.** The briefs' "Check" and "Developer does" items (phones, two-browser checks, the real backend, looking at `/dev/theme`) wait for one hands-on pass at that point. A step is done when lint, build and tests pass; each DONE note lists the manual checks it did not run. | The developer wants to finish building first, then get hands-on with the whole codebase and app once, instead of context-switching into testing after every step |
+
+Recorded in `CLAUDE.md` (working rules) and `docs/FrontendSteps.md` (developer guide, "Done" definition). The briefs themselves are unchanged, so they still describe the checks to do then. F9's live walkthrough is not changed by this decision.
+
+---
+
 ## 10 Nov 2026 — Planning Milestone F (frontend)
 
 **Session:** Fable, with the developer answering questions. Branch `frontend-f0`. Documentation only; no code was written.

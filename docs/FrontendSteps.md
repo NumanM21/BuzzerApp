@@ -27,6 +27,8 @@ Opus is suggested where a mistake is expensive: F0 fixes the architecture for ev
 
 Nothing here is done by the AI worker. Each brief ends with a **Developer does** list for anything specific to that step.
 
+> **Manual testing is deferred (decided 11 Nov 2026).** The developer is finishing every B and F step first and will get hands-on with the app (phones, real backend, the setup and checks below) once, just before deployment. Until then **ignore the "try it" parts of this guide and the briefs' "Developer does" items**: nothing is blocked on them, and a step is done when lint, build and tests pass. Each worker's DONE note says which manual checks it did not run; those, together with Appendix B, are the list for the hands-on pass.
+
 ### One-time setup (before F0)
 
 1. **Node.** `node -v` must show 24 or newer (CI uses 24).
@@ -52,7 +54,7 @@ Nothing here is done by the AI worker. Each brief ends with a **Developer does**
    Do F<n>.
    ```
 3. The worker builds, tests, commits (no push, no PR) and finishes with a summary and a DONE note in this file.
-4. You review: read the summary, run `npm run dev`, try the step's **Check**, look at `/dev/theme`.
+4. You review: read the summary. (Running `npm run dev`, the step's **Check** and `/dev/theme` are deferred to the hands-on pass before deployment; see the note above.)
 5. Push and open the PR yourself: `git push -u origin frontend-f<n>`. CI (`backend` and `frontend` jobs) must be green. Merge with "Rebase and merge".
 
 No GitHub settings change during Milestone F: the `frontend` check already exists and stays required.
@@ -72,7 +74,7 @@ No GitHub settings change during Milestone F: the `frontend` check already exist
 - The developer's prompt "Do F<n>" counts as "go". Don't stop to propose a file list. Stop and ask only when the brief is unclear, looks wrong, or needs a decision that isn't yours (a PlanMVP decision, a backend change, a new package not listed in the brief).
 - **Branch:** work on the checked-out branch, which must be `frontend-f<n>`. If it is `main` or another step's branch, stop and tell the developer. Never create, switch or delete branches.
 - **Commits:** small, one logical change each, in the imperative ("Add the API client"). **No push, no PR.** No Claude attribution (no `Co-Authored-By`, no "Generated with" line).
-- **Done** means all of these pass in `frontend/`, with zero warnings: `npm run lint`, `npm run build`, `npm test`. Plus the step's own **Check**. Never disable a lint rule, skip a test, add `// @ts-ignore` or use `any` to get there. If a rule seems wrong, ask.
+- **Done** means all of these pass in `frontend/`, with zero warnings: `npm run lint`, `npm run build`, `npm test`. The step's own **Check** needs a browser or the real backend, so it is deferred to the developer's hands-on pass before deployment: don't wait for it, and list in your DONE note which parts you did not run. Never disable a lint rule, skip a test, add `// @ts-ignore` or use `any` to get there. If a rule seems wrong, ask.
 - **Finish** with a short summary for the developer (a few paragraphs): what was built, why it is shaped that way, anything non-obvious. The developer reads C# well and is new to React, TypeScript and MobX, so explain frontend ideas in plain words and compare with C# where it helps.
 - **Mark the step done in this file as your last commit:** in the table, change the branch cell to `` `frontend-f<n>` — **DONE** ``; add ` — DONE` to the step's heading; add a "Kept for reference; **do not redo.**" note above the brief listing what exists, every deviation from the brief, and what later steps must know; if something affects a later step, add it to that step's brief too; append your rows to Appendix B; update the "start at F<n>" line at the top. Commit as `Mark F<n> done in FrontendSteps`.
 - Comments explain *why*, not *what*.
