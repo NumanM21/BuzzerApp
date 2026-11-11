@@ -2,7 +2,7 @@
 
 > **Audience:** the developer, who does this pass once every B and F step is done (decided 11 Nov 2026, `docs/DecisionLog.md`), and the AI workers who feed it.
 > **Why it exists:** a step is "done" when lint, build and tests pass, which proves nothing about a real phone, a real server or how the app feels. Everything those checks can't prove is collected here, so the developer gets one ordered walkthrough instead of hunting through twenty DONE notes.
-> Written 11 Nov 2026 from the F0–F6 briefs and DONE notes. F7 added section 5. **F8–F9 add their rows as they finish.**
+> Written 11 Nov 2026 from the F0–F6 briefs and DONE notes. F7 added section 5, F8 section 6. **F9 adds its rows and assembles section 7.**
 
 ## For AI workers: how to feed this file
 
@@ -66,13 +66,13 @@ How to read the table: **[ ]** tick when it behaved as described. If it didn't, 
 
 | | Step | Do this | Expect | Needs |
 |---|---|---|---|---|
-| [ ] | F4 | Open `/dev/realtime` as a player in one browser and as the admin in a private window. Admin presses Begin | Both show `open` at once; only the admin window has the admin snapshot | 2 devices |
+| [ ] | F4 | Open `/dev/realtime` as a player in one browser and as the admin in a private window (in the admin window open `/dev/realtime` in one tab and Host, `/admin`, in another). Admin presses Begin on Host | The player's `/dev/realtime` shows `open` at once; the admin's `/dev/realtime` shows `open` and has an admin snapshot (with a `buzzes` list) while the player's says "None yet" | 2 devices |
 | [ ] | F4 | With both open, stop the API and start it again | Both reconnect by themselves and show the idle round, with no reload | API restart |
 | [ ] | F4 | Lock a phone for a minute (or airplane mode for two), unlock | The round state is current within a second or two | phone |
 | [ ] | F4 | While a player is signed in, promote them from the Teams screen on another device | Their app moves to the host screen and receives the host data without signing in again | 2 devices |
 | [ ] | F4 | In the browser's network panel after load, sign-in and sign-out | At most one open WebSocket to `/hubs/game` | browser |
-| [ ] | F5 | Two phones on different teams plus an admin on `/dev/realtime`. Begin; both buzz | The order on both phones matches; each phone shows its own place ("Number 2") | 2 devices |
-| [ ] | F5 | Admin presses Next team, then Reset | The turn moves on both phones; Reset returns both to waiting | 2 devices |
+| [ ] | F5 | Two phones on different teams plus an admin on the Host screen (`/admin`). Begin; both buzz | The order on both phones matches; each phone shows its own place ("Number 2") | 2 devices |
+| [ ] | F5 | Admin presses Next team (enabled once the round has locked), then Reset | The turn moves on both phones; Reset returns both to waiting | 2 devices |
 | [ ] | F5 | A third player registers while a round is running and tries to buzz | "You're in from the next round" | 3 devices |
 | [ ] | F5 | One tap, and a fast double tap, on the buzzer | One buzz sent; the button reads "Sent" at once; the page doesn't zoom | phone |
 | [ ] | F5 | Cut the network while the buzzer is ready and press; restore it | A notice shows, nothing is sent, and after reconnecting the buzzer is pressable again without a reload | phone |
@@ -127,9 +127,49 @@ Have the admin scoring screen (**Scores** in the admin's bottom navigation, `/ad
 
 ## 6. Host screen and event admin (added by F8)
 
+Setup for this section: the event has at least three teams with at least one player each (two phones signed in as players on different teams, ideally a third), and you are signed in as the admin on a phone (**Host** in the bottom navigation is `/admin`, **Event** is `/admin/event`). For "2 admins", promote a second person (Teams screen, ⋮ on a member, Make admin).
+
+### Host screen (`/admin`)
+
 | | Step | Do this | Expect | Needs |
 |---|---|---|---|---|
-| | | *(F8 adds its rows here)* | | |
+| [ ] | F8 | As the admin open Host while no round is running | Title "Host"; "No question in play"; three big full-width buttons, **Begin** enabled, **Next team** and **Reset** greyed out; "No team has buzzed yet." and "No buzzes yet." under them | phone |
+| [ ] | F8 | Stop the API, open Host (or reload it), then start the API again | While it can't connect: a spinner or warning ("Connecting to the game…" / "Not connected to the game"), all three buttons greyed, no empty lists that look like "nothing happened". After the API is back the screen fills in by itself with "No question in play", with no reload | API restart |
+| [ ] | F8 | Make sure no player is on a team (for example a fresh event with only the admin), then tap Begin | A sentence under the buttons: "No players have joined a team yet". The round does not start and Begin stays tappable | real backend |
+| [ ] | F8 | Tap Begin with players on teams | "Waiting for buzzes"; Begin greyed, Reset enabled, Next team still greyed; the players' phones show their buzzer as ready | 2 devices |
+| [ ] | F8 | Two players on different teams buzz, one after the other | "Team order" lists both teams in the order of the buzzes, with who buzzed for each; "Every buzz" lists `#1 <player> (<team>) +0.00s` and `#2 <player> (<team>) +0.xxs`; the order matches the players' phones | 2 devices |
+| [ ] | F8 | About two seconds after the first buzz | Phase "Locked"; a box "Answering now" names the first team and who buzzed for it; the stopwatch counts up in tenths of a second (`0:03.4`) from about `0:00.0`; in "Team order" that team says "Answering" in words, the others "Waiting"; **Next team** is now enabled | 2 devices |
+| [ ] | F8 | Two players of the **same** team buzz (the second a moment after the first) | The second player's line says `· not counted`, in words; the queue still has one row for the team | 2 devices |
+| [ ] | F8 | Tap Next team | "Answering now" moves to the next team and the stopwatch restarts from about `0:00.0`; the first team shows "Out"; on the players' phones the turn moves too | 2 devices |
+| [ ] | F8 | Keep tapping Next team until every team has had its turn | Phase "Every team has passed"; the "Answering now" box goes; Next team greys out; Reset stays enabled | 2 devices |
+| [ ] | F8 | Tap Reset, then (next round) tap Reset very fast twice | The phase goes back to "No question in play", the queue and buzz list empty, the players' buzzers return to waiting; a fast double tap does nothing extra and shows no error | 2 devices |
+| [ ] | F8 | Run a round in which only one team buzzes and nobody touches the host buttons | The round locks by itself about two seconds after that buzz and the team is "Answering now" | 2 devices |
+| [ ] | F8 | Set the host phone's clock several minutes wrong (turn off automatic time), run a round to "Locked" | The stopwatch still starts near `0:00.0` when the team becomes current (it follows the server's clock, not the phone's). Switch automatic time back on afterwards | phone |
+| [ ] | F8 | After a round, open Scores in the bottom navigation, add points, then go back to Host | Host still shows the round as it is (not reset); Reset then clears it. This is the normal order: award points, then Reset | phone |
+| [ ] | F8 | Two admins both tap Begin at the same moment (or one taps Reset while the other taps Next team) | One wins and both screens end in the same state. The other may show a short sentence from the server ("A round is already running" or similar); it goes away by itself when the phase changes. Nothing crashes | 2 admins |
+| [ ] | F8 | Turn the host phone's network off during a round | A "Connection lost. Reconnecting…" notice appears, the picture stays, all three buttons are greyed (nothing can be sent). When the network is back the notice goes and the buttons match the round again | phone |
+| [ ] | F8 | While a player is signed in, promote them (Teams screen, another device) | Their phone goes to Host; for a moment it shows a spinner, then the buttons and lists, never an empty queue pretending nothing happened | 2 devices |
+| [ ] | F8 | Open Host with 13 teams in the queue and the longest names (24-character team names, 20-character player names), in both packs, at 360 px | No horizontal scroll; the three buttons are at least 64 px tall and full width; the queue and buzz lines wrap instead of clipping; the stopwatch fits on one line in the arcade font; "Answering" and "not counted" are words, not only colour | phone |
+| [ ] | F8 | Keyboard only (desktop): Tab to Begin, press Enter | The round begins; the focus ring is visible on every button | browser |
+| [ ] | F8 | `/dev/realtime` (development only): open it as an admin and as a player | The admin sees no buttons (the host screen runs the round); the player still has a Buzz button; both show the connection and snapshots as text | browser |
+| [ ] | F8 | As a player type `/admin` in the address bar | You are sent back to `/play` | phone |
+| [ ] | F8 | In the browser's network panel, sign in as a **player** and use the app | No file called `AdminPage…`, `AdminScoresPage…` or `AdminEventPage…` is downloaded. As an admin, the first visit to Host/Scores/Event fetches a small file for it, with a brief "Loading" spinner while the header stays | browser |
+
+### Event screen (`/admin/event`)
+
+Do this after the games, or at any time on test data: finalizing changes nothing in the live event.
+
+| | Step | Do this | Expect | Needs |
+|---|---|---|---|---|
+| [ ] | F8 | As the admin open Event | "Finalize" with a big **Finalize the event** button; under "Export" only the hint "Finalize the event first, then the file can be downloaded here." and no download link | phone |
+| [ ] | F8 | Tap Finalize the event, then Cancel | A confirmation explains it freezes teams, members and scores into the archive and can be repeated; Cancel closes it and nothing else changes (still no download link) | phone |
+| [ ] | F8 | Tap Finalize the event, then Finalize | The dialog closes; "Finalized at hh:mm" shows (your local time); a button "Download buzzer-archive-<year>.json" appears with a note that the file contains real names | real backend |
+| [ ] | F8 | Tap the Download button | The browser saves a file named `buzzer-archive-<year>.json` and the app stays on the Event screen (it does not navigate away or show the JSON). The file opens as JSON with the teams, members (real names), scores and ranks. **Don't commit or share it** | browser |
+| [ ] | F8 | Add points on Scores, then Finalize again and download again | The new file has the new scores (each finalize replaces the archive); no error | 2 devices |
+| [ ] | F8 | After finalizing, reload the Event screen | The download link is gone again and the hint is back: Export needs a Finalize in the same visit (known limitation, see the F8 DONE note; finalizing again is harmless) | browser |
+| [ ] | F8 | Stop the API, tap Finalize the event then Finalize | The dialog stays open with "Could not reach the server. Check your connection and try again."; no download link appears. After the API is back, Finalize works | API restart |
+| [ ] | F8 | As a player (signed in, in another browser profile) open `/api/archive/1/export` in the address bar | No file is downloaded; the server refuses (an error page, not the archive) | browser |
+| [ ] | F8 | As a player type `/admin/event` in the address bar | You are sent back to `/play` | phone |
 
 ## 7. Whole-evening run (assembled by F9)
 
