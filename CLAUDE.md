@@ -12,6 +12,7 @@ Live buzzer + scoreboard web app for a yearly family games night. .NET 10 backen
 
 ## Working rules
 - Only work on the step the developer names (e.g. "F3"). "Do F<n>" counts as "go"; stop and ask only when the brief is unclear, looks wrong, or needs a decision that isn't yours.
+- **The developer does no manual testing until every B and F step is complete, just before deployment** (decided 11 Nov 2026). Don't ask for a hands-on check, don't wait on a brief's "Check" or "Developer does" item, and don't treat one as a blocker. The bar for a step is the automated one (lint, build, tests). Say plainly in the DONE note which manual checks were not run, so they can be collected for that later hands-on pass. This does not change what a worker may touch: still no Docker dev DB, no User Secrets.
 - Ask about unresolved open questions one at a time before coding the step that needs them.
 - After each step, summarise briefly what was built and why (the developer wants to understand it), and mark the step done in its steps file.
 - Comments explain *why*, not *what*.
