@@ -2,9 +2,9 @@
 
 > **Audience:** AI workers implementing one step each in a fresh session, and the developer who starts and reviews them.
 > Adds implementation detail to `docs/PlanMVP.md` §10 Milestone F. **PlanMVP wins on product decisions; this file wins on frontend implementation detail.**
-> Written 10 Nov 2026. **F0–F8 are done: start at F9.**
+> Written 10 Nov 2026. **F0–F9 are done: Milestone F is finished.** Next is the developer's hands-on pass (`docs/ManualTestChecklist.md`), then Milestone R.
 >
-> The backend is finished and is not changed by these steps. If a step seems to need a backend change, stop and ask the developer.
+> The backend is finished and is not changed by these steps. If a step seems to need a backend change, stop and ask the developer. (One was agreed, in F9: a registration now notifies connected clients.)
 
 | Step | Branch | Suggested model | Scope |
 |---|---|---|---|
@@ -17,7 +17,7 @@
 | F6 | `frontend-f6` — **DONE** | Sonnet 5.5 | `/teams`: team cards, edit names, rename, move, make admin, create and delete team |
 | F7 | `frontend-f7` — **DONE** | Sonnet 5.5 | `/scores` leaderboard; `/admin/scores` adjustments and undo |
 | F8 | `frontend-f8` — **DONE** | Sonnet 5.5 | `/admin` host screen; `/admin/event` finalize and export |
-| F9 | `frontend-f9` | **Fable** | Whole-frontend review, live walkthrough against the real backend, fixes |
+| F9 | `frontend-f9` — **DONE** | **Fable** | Whole-frontend review, live walkthrough against the real backend, fixes |
 
 Opus is suggested where a mistake is expensive: F0 fixes the architecture for every later step, and F4 has lifecycle and timing bugs that only show up on a real phone. If a Sonnet step goes wrong twice on the same point, rerun that step on Opus.
 
@@ -855,7 +855,53 @@ Teams and players change every year: 2026 has six teams; another year may have t
 
 ---
 
-## F9 — Whole-frontend review and live walkthrough
+## F9 — Whole-frontend review and live walkthrough — DONE
+
+> **Done 11 Nov 2026. Kept for reference; do not redo.** Milestone F is finished. What comes next is the developer's hands-on pass (`docs/ManualTestChecklist.md`), then Milestone R.
+>
+> **What F9 did, in the brief's four parts**
+> 1. **Review:** read every doc and all of `frontend/src` outside the tests against the shared rules; reported the findings below by severity; fixed them in small commits, each with a test that failed first where a test is possible.
+> 2. **Live walkthrough:** the published API in Production mode serving the built app, its own PostgreSQL container, six real browser contexts (Edge, 360 px) driven by a script. It passes 106 of 106 checks in four set-ups: arcade pack with six teams, `default` pack with three, arcade pack with eight (one 24-character name, two icon keys the pack doesn't know), and through the Vite dev server. It found H2, H3, M5, M6 and M7, which no jsdom test could see.
+> 3. **Manual checklist:** `docs/ManualTestChecklist.md` is now one start-to-finish session: set-up at the top, a whole-evening run (section 1), then the checks by area, with a "Seen live" column for what the walkthrough already proved.
+> 4. **Wrap-up:** the three decisions below, Appendix B in priority order, the notes for Milestone R.
+>
+> **Findings** (High = would hurt on event day; Medium = wrong in a case that can happen, or a duplicate the brief named; Low = code quality)
+>
+> | # | Finding | What was done |
+> |---|---|---|
+> | H1 | **The app had no error screen.** When the theme pack or an admin screen's file failed to arrive (bad Wi-Fi, or a phone holding the page from before a redeploy) the person saw react-router's developer page or a blank page | `components/ErrorScreen` (plain elements, no theme: it must work when the theme itself failed) and `app/errorBoundaries`: the route tree's `ErrorBoundary` and one around the theme load. Inside the shell the header and navigation stay. A Reload button |
+> | H2 | **After any dialog closed, the whole app stayed hidden from screen readers and the keyboard focus was dropped.** The app closed a dialog by no longer rendering it while it was still open, so Fluent never undid its `aria-hidden` | Dialogs are closed with `open={false}` while still on the page (`FormDialog.open`, `useLastDefined`); the opening buttons are marked as where focus returns (`useRestoreFocusTarget`) |
+> | H3 | **A newly registered player did not appear on anyone else's phone**: registration was the one write that sent no `TeamsChanged` / `ScoresChanged` | **A backend change, agreed by the developer:** `SessionService.RegisterAsync` calls `notifier.TeamsAndScoresChangedAsync()`; two cases in `WriteNotificationTests`. Recorded in `docs/BackendSteps.md` ("Changes after B9") and PlanMVP §8 |
+> | M1 | The event was asked for once: if the server was unreachable at start, "Try again" re-read only the session, and the app stayed in the default theme with no event name | "Try again" also reloads the event when its load failed (`RouteGuardViewModel`) |
+> | M2 | A session that ended while the phone was connected left the player on "Reconnecting…" for ever (F4's known limit) | `RealtimeCoordinator` re-reads the session when a connection attempt fails; a 401 signs the person out (`GameConnection.onAttemptFailed`, `reconnectPolicy`) |
+> | M3 | `JoinViewModel` had its own copy of "server error → field messages" | It reads a failure with the shared `readFailure`. It keeps its own submit cycle, on purpose (the rate-limit countdown and "Sign in instead" are more than `FormSubmission` models); the reason is in the class comment |
+> | M4 | Export needs a Finalize in the same visit (F8's open item) | **The developer decided: leave it for the MVP.** Finalizing again is harmless. Optional later: PlanMVP §11, O11 |
+> | M5 | **The admin's Scores screen was wider than a phone** (up to 415 px at 360). Three causes, found one after another: `1fr` grid columns never shrink below their content; Fluent's `Field` has its own inner grid that kept each text box at its twenty-character default; a drop-down asks for the width of its longest option | Columns are `minmax(0, 1fr)`, and every text box and drop-down takes its sizing from `components/useFieldControlStyles.ts` (`minWidth: 0`). Measured in a real browser: exactly 360 px |
+> | M6 | After a dialog was submitted, the focus fell to the page body: the confirm button became `disabled` while the request ran, and a disabled button drops the focus it holds | The button is held with `disabledFocusable`, and the form ignores a submit while one is running |
+> | M7 | **F9's own mistake:** sharing the page styles (L2) took the join screen's side padding and centred width, because the shared frame leaves the padding to the app shell and the join screen is outside the shell | `outsideShell` in `JoinPage` adds them back. Found in the walkthrough's screenshots |
+> | L1–L8 | The team-looks map built twice; page, heading and tap-target styles copied into seven pages; two pickers with the same radio-card frame; `compareNames` lower-casing where the server upper-cases; types written twice; comments that told the build history; assertions that only checked a message existed | `teamLooksById`; `components/usePageStyles.ts` and `sizes.ts`; `components/RadioCards.tsx`; `compareNames` matches the server; one definition each of the connection-state, player-role, score-target and score-direction types; comments reworded; nine assertions made exact. L7 (the tab title stays "Buzzer") is noted for R1 |
+>
+> **Checked and found fine:** the layer rules (no logic in a view, no React in a view model; the two view models that call an API class directly are documented choices); nothing of the 2026 event outside `packs/arcade-2026/`; F4's eight lifecycle rules; security and privacy (hub methods take no arguments, real names only where the server sent them, only the join code in storage, `/dev/*` absent from the build, admin chunks only requested by admin routes); the tests (no real timers, no skips, no `any`).
+>
+> **Decisions made with the developer (11 Nov 2026)**
+> - H3: fixed in F9, in the backend (the one backend change of Milestone F).
+> - M4: left as it is for the MVP.
+> - The walkthrough script is kept as a draft in `docs/playwright-draft/` for the post-MVP Playwright work (PlanMVP §11, O10). Nothing runs it.
+>
+> **Deviations from the brief**
+> - **A backend change** (H3), with the developer's agreement. The brief said the frontend steps don't change the backend.
+> - **The walkthrough script was committed** (the brief said nothing from the walkthrough is), at the developer's request, as a draft outside the build. The scratch API, the database container and the screenshots were not.
+> - **Appendix B is prioritised by a "five to automate first" list** above the table; the table itself is still in step order.
+> - **M5 took three commits and L2 caused M7.** The first M5 fix was committed before it was checked in a browser. Worth knowing for later work: a layout fix is not done until it is measured in a real browser, and a style refactor across many pages needs a look at every page it touched.
+>
+> **Checked:** `npm run lint`, `npm run build` (no notices; main chunk 481 kB, Fluent 414 kB), `npm test` (1356 tests in 89 files); the backend suite after H3 (156 Core and 383 Api tests, 0 warnings); the live walkthrough above.
+> **Not checked (only a person can):** a finger on a real touch screen (the feel and speed of the buzzer, a double tap, the page not zooming), a phone that locks or loses Wi-Fi, the on-screen keyboard, readability and tap sizes in the hand, thirteen teams and forty players, a real screen reader, "reduce motion", the host phone's clock set wrong, and H3 in a browser after the fix (a server test proves the message is sent). All of these are rows in `docs/ManualTestChecklist.md`.
+> **For the developer to judge (looks, left as they are):** in the arcade pack at 360 px long team names break inside a word on team cards and score rows; the header is tall when the event's name is long; the join screen's "Continue" button sits level with the label, not the box. Each has a "Your call" row in section 2 of the checklist.
+>
+> **Milestone R must know**
+> - **Caching (R1 or R3):** the API serves `index.html` through `UseStaticFiles()` with no `Cache-Control`, so a browser may reuse an old copy after a redeploy and ask for script files that no longer exist. Send `Cache-Control: no-cache` for `index.html` and a long `max-age` with `immutable` for `/assets/*` (their names carry a hash). A backend change in `HostingSetup`. H1's error screen is the safety net for phones that still get caught.
+> - **R1:** the browser tab's title stays "Buzzer" (the event's name could replace it), and the splash before the theme loads is unstyled, so a dark theme is preceded by a moment of white. Both belong with the web manifest work.
+> - The manual checks are in `docs/ManualTestChecklist.md`; a step that changes a flow updates its rows.
 
 **Model:** Fable. **Read:** everything a worker reads, plus all DONE notes, and PlanMVP in full. This step may read `docs/BackendSteps.md` "B9" for how the backend walkthrough was run.
 

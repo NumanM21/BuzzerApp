@@ -7,6 +7,25 @@ Earlier history, before this file existed: the "Changed …" notes inside `PlanM
 
 ---
 
+## 11 Nov 2026 — F9: the frontend review, and three decisions
+
+**Decided by:** the developer, at the end of F9 (the whole-frontend review and live walkthrough). The findings and what was done about each are in the F9 DONE note in `docs/FrontendSteps.md`.
+
+| # | Change | Why |
+|---|---|---|
+| 1 | **A registration now tells connected clients** (`TeamsChanged` / `ScoresChanged`). One call in the backend's `SessionService`, done inside F9 with the developer's agreement, although the frontend steps were not meant to change the backend. | F9's live walkthrough found that nobody saw a newcomer until something else changed, so the Teams screen was not a live lobby while guests joined. Registration was the one write that sent nothing |
+| 2 | **Export still needs a Finalize in the same visit** (F8's open item). No change for the MVP; optional later as O11 in PlanMVP §11. | Finalizing again is harmless, the host finalizes and downloads in one go on the night, and the fix needs a backend change and a screen change for little gain |
+| 3 | **Playwright stays after the MVP** (D32 unchanged), **and the script F9 wrote for its walkthrough is kept** as a draft in `docs/playwright-draft/`. Nothing runs it: not `npm test`, not lint, not CI. `docs/FrontendSteps.md` Appendix B names the five scenarios to automate first. | Unit and integration tests are the MVP's bar. The script found five faults that jsdom cannot see (layout and focus), so it is worth keeping as the starting point for O10 instead of losing it with a temporary folder |
+| 4 | **Milestone F is finished.** Next: the developer's hands-on pass from `docs/ManualTestChecklist.md` (now one start-to-finish session), then Milestone R. | Every B and F step is done; manual testing was deferred to this point (entry below) |
+
+### What F9 learned that later work should keep
+
+- **A layout fix is not done until it is measured in a real browser.** The admin Scores screen was fixed three times: jsdom has no layout, so each fix looked right in the tests.
+- **A style refactor across many pages needs a look at every page it touched.** Sharing the page styles took the join screen's padding, and only a screenshot showed it.
+- **Deployment needs caching headers** for `index.html` and `/assets/*` (PlanMVP R1), or a phone can be left on an old build after a redeploy.
+
+---
+
 ## 11 Nov 2026 — One manual checklist, fed by every step
 
 **Decided by:** the developer, after F6.

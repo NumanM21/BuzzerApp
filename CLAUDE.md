@@ -2,12 +2,13 @@
 
 Live buzzer + scoreboard web app for a yearly family games night. .NET 10 backend, React 19 + TS + Vite + Fluent UI v9 + MobX frontend (MVVM). Reused every year with different teams, players and theme.
 
-**The plan is `docs/PlanMVP.md`** (decisions §3, open questions §4, domain model §7, API contract §8, theming §9, steps §10). The backend (steps B0–B9) is done. **Milestone F (frontend, steps F0–F9) is in progress.**
+**The plan is `docs/PlanMVP.md`** (decisions §3, open questions §4, domain model §7, API contract §8, theming §9, steps §10). The backend (steps B0–B9) and the frontend (Milestone F, steps F0–F9) are done. **Next: the developer's hands-on pass from `docs/ManualTestChecklist.md`, then Milestone R (deployment).**
 
 **What to read for a task**
 - **A frontend step (F0–F9):** `docs/FrontendSteps.md`: its "Shared rules", the step's brief and Appendix A (the API as TypeScript types). From `docs/PlanMVP.md` only §0, §1, §9 and what the brief names. **Don't read `docs/BackendSteps.md`**: it is long and the frontend doesn't need it.
 - **Backend work:** `docs/PlanMVP.md`, and `docs/BackendSteps.md`, which records what was built and every deviation, wins on backend implementation detail, and whose **B9 section describes the current design**.
-- `docs/ManualTestChecklist.md` is the developer's walkthrough for the deferred hands-on pass. Every step appends its manual checks to it (read its "For AI workers" section, not the whole file). F9 turns it into one start-to-finish session.
+- `docs/ManualTestChecklist.md` is the developer's walkthrough for the deferred hands-on pass. Every step appends its manual checks to it (read its "For AI workers" section, not the whole file). F9 made it one start-to-finish session; a step that changes a flow updates its rows.
+- `docs/playwright-draft/` is the script F9 used for its live walkthrough, kept as a draft for the post-MVP Playwright tests (PlanMVP §11, O10). Nothing runs it (not `npm test`, not lint, not CI); don't extend it as part of another step.
 - `docs/DecisionLog.md` is the dated history of plan changes for the developer. Append to it when a decision changes; don't read it for a normal step.
 - 2026 team design: `images/team-logos/` (six `<team>-face.png` icons + `group-participating-teams.png` reference).
 
