@@ -1,6 +1,7 @@
 import { makeAutoObservable } from 'mobx';
 import { decideRoute, type RouteAccess, type RouteDecision } from '@/domain/routeAccess';
 import { Command } from '@/mvvm/Command';
+import type { EventStore } from '@/stores/EventStore';
 import type { SessionStore } from '@/stores/SessionStore';
 
 /**
@@ -13,10 +14,13 @@ export class RouteGuardViewModel {
   private readonly session: SessionStore;
   private readonly retryCommand: Command;
 
-  constructor(session: SessionStore, access: RouteAccess) {
+  constructor(session: SessionStore, event: EventStore, access: RouteAccess) {
     this.session = session;
     this.access = access;
-    this.retryCommand = new Command(() => this.session.restore());
+    // When the server couldn't be reached as the app opened, the event (its name and theme) failed to load as well
+    // as the session. Trying again asks for both, or the app would stay nameless in the default theme until someone
+    // reloaded the page. `ensureLoaded` asks nothing when the event is already known. Neither call rejects.
+    this.retryCommand = new Command(() => Promise.all([this.session.restore(), event.ensureLoaded()]));
     makeAutoObservable<RouteGuardViewModel, 'access' | 'session' | 'retryCommand'>(
       this,
       { access: false, session: false, retryCommand: false },

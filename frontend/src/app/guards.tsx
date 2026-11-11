@@ -24,7 +24,7 @@ const useStyles = makeStyles({
  * `Component` of a route with child routes, so the children appear at the `<Outlet />` only for people allowed in.
  */
 const RouteGuard = observer(function RouteGuard({ access }: { access: RouteAccess }) {
-  const vm = useViewModel((services) => new RouteGuardViewModel(services.session, access));
+  const vm = useViewModel((services) => new RouteGuardViewModel(services.session, services.event, access));
   const styles = useStyles();
   const { decision } = vm;
 
