@@ -14,9 +14,9 @@ import {
 } from '@/domain/validation';
 import { Command } from '@/mvvm/Command';
 import { Countdown } from '@/mvvm/Countdown';
+import { readFailure } from '@/mvvm/FormSubmission';
 import { isApiError } from '@/mvvm/isApiError';
 import { Loadable } from '@/mvvm/Loadable';
-import { toError } from '@/mvvm/toError';
 import type { EventStore } from '@/stores/EventStore';
 import type { SessionStore } from '@/stores/SessionStore';
 
@@ -35,6 +35,8 @@ export interface TeamOption {
 
 const CODE_NOT_RECOGNISED = 'That join code is not recognised';
 
+const joinFields: readonly JoinField[] = ['joinCode', 'realName', 'displayName', 'pin', 'teamId'];
+
 // What went wrong with the last submit, besides the problems that belong to one field.
 type Failure =
   | { kind: 'message'; text: string; realNameTaken: boolean }
@@ -44,6 +46,10 @@ type Failure =
  * The join screen: register as a new player or sign in. It owns the form, checks it the way the server will (so most
  * mistakes never leave the phone), fetches the team list for the join code and turns every kind of failed call into
  * text next to what caused it. On success the session store becomes signed in and the route guards move the person on.
+ *
+ * Which message goes on which field is the shared `readFailure` rule, as in every dialog. The submit cycle itself is
+ * this class's own rather than a `FormSubmission`, because a failure here is more than a sentence: a rate limit is a
+ * countdown that outlives edits and holds the button, and a taken real name comes with a "Sign in instead" action.
  */
 export class JoinViewModel {
   tab: JoinTab = 'register';
@@ -379,62 +385,29 @@ export class JoinViewModel {
   }
 
   private showFailure(reason: unknown): void {
-    if (!isApiError(reason)) {
-      this.failure = { kind: 'message', text: toError(reason).message, realNameTaken: false };
+    if (isApiError(reason) && reason.kind === 'notFound') {
+      this.fieldErrors = { ...this.fieldErrors, joinCode: CODE_NOT_RECOGNISED };
       return;
     }
-    switch (reason.kind) {
-      case 'validation':
-        this.showServerFieldErrors(reason.fieldErrors, reason.message);
-        return;
-      case 'notFound':
-        this.fieldErrors = { ...this.fieldErrors, joinCode: CODE_NOT_RECOGNISED };
-        return;
-      case 'conflict':
-        this.failure = {
-          kind: 'message',
-          text: reason.message,
-          realNameTaken: this.tab === 'register' && isRealNameTakenMessage(reason.message),
-        };
-        return;
-      case 'rateLimited':
-        this.failure = { kind: 'rateLimited', retryAfterSeconds: reason.retryAfterSeconds };
-        this.submitCooldown.start(reason.retryAfterSeconds ?? 0);
-        return;
-      default:
-        // A wrong name or PIN (401), no connection, a server fault: the server's own sentence, on the form.
-        this.failure = { kind: 'message', text: reason.message, realNameTaken: false };
+    if (isApiError(reason) && reason.kind === 'rateLimited') {
+      this.failure = { kind: 'rateLimited', retryAfterSeconds: reason.retryAfterSeconds };
+      this.submitCooldown.start(reason.retryAfterSeconds ?? 0);
+      return;
     }
+    // Everything else reads the way every form reads it: field messages under their fields, the rest on the form
+    // (a taken name, a wrong name or PIN, no connection, a server fault), in the server's own words.
+    const { fieldErrors, message } = readFailure(reason, joinFields);
+    this.fieldErrors = fieldErrors;
+    this.failure =
+      message === undefined
+        ? undefined
+        : { kind: 'message', text: message, realNameTaken: this.isRealNameTaken(reason, message) };
   }
 
-  /** Each message under its field; a field the form doesn't have goes on the form, so nothing is swallowed. */
-  private showServerFieldErrors(serverErrors: Record<string, string[]>, fallback: string): void {
-    const onFields: JoinFieldErrors = {};
-    const leftovers: string[] = [];
-    for (const [name, messages] of Object.entries(serverErrors)) {
-      const text = messages.join(' ');
-      if (text === '') {
-        continue;
-      }
-      if (isJoinField(name)) {
-        onFields[name] = text;
-      } else {
-        leftovers.push(text);
-      }
-    }
-    this.fieldErrors = onFields;
-    if (leftovers.length > 0 || Object.keys(onFields).length === 0) {
-      this.failure = {
-        kind: 'message',
-        text: leftovers.length > 0 ? leftovers.join(' ') : fallback,
-        realNameTaken: false,
-      };
-    }
+  /** Only a registration's 409 can mean "you are already registered": that is when signing in instead helps. */
+  private isRealNameTaken(reason: unknown, message: string): boolean {
+    return (
+      this.tab === 'register' && isApiError(reason) && reason.kind === 'conflict' && isRealNameTakenMessage(message)
+    );
   }
-}
-
-const joinFields: readonly string[] = ['joinCode', 'realName', 'displayName', 'pin', 'teamId'] satisfies JoinField[];
-
-function isJoinField(name: string): name is JoinField {
-  return joinFields.includes(name);
 }
