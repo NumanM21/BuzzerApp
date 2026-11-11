@@ -2,7 +2,7 @@
 
 > **Audience:** AI workers implementing one step each in a fresh session, and the developer who starts and reviews them.
 > Adds implementation detail to `docs/PlanMVP.md` §10 Milestone F. **PlanMVP wins on product decisions; this file wins on frontend implementation detail.**
-> Written 10 Nov 2026. **F0–F6 are done: start at F7.**
+> Written 10 Nov 2026. **F0–F7 are done: start at F8.**
 >
 > The backend is finished and is not changed by these steps. If a step seems to need a backend change, stop and ask the developer.
 
@@ -15,7 +15,7 @@
 | F4 | `frontend-f4` — **DONE** | **Opus 5.5** | SignalR connection, round store, server clock, session and connection lifecycle, buzzer state rule |
 | F5 | `frontend-f5` — **DONE** | Sonnet 5.5 | `/play`: buzzer and team queue |
 | F6 | `frontend-f6` — **DONE** | Sonnet 5.5 | `/teams`: team cards, edit names, rename, move, make admin, create and delete team |
-| F7 | `frontend-f7` | Sonnet 5.5 | `/scores` leaderboard; `/admin/scores` adjustments and undo |
+| F7 | `frontend-f7` — **DONE** | Sonnet 5.5 | `/scores` leaderboard; `/admin/scores` adjustments and undo |
 | F8 | `frontend-f8` | Sonnet 5.5 | `/admin` host screen; `/admin/event` finalize and export |
 | F9 | `frontend-f9` | **Fable** | Whole-frontend review, live walkthrough against the real backend, fixes |
 
@@ -729,7 +729,34 @@ Teams and players change every year: 2026 has six teams; another year may have t
 
 ---
 
-## F7 — Scores
+## F7 — Scores — DONE
+
+> **Done 11 Nov 2026. Kept for reference; do not redo.**
+>
+> **What exists** (`frontend/src/`)
+> - `domain/`: `names.ts` gained `compareNames` (the shared case-insensitive comparer the shared rules promised; it did not exist yet); `playerScoreSort.ts` (`sortPlayerScores(rows, 'team' | 'score', teamOrder)`, `PlayerSortMode`, `isPlayerSortMode`); `scoreEntry.ts` (the entry form's limits and checks, `entryTotal`, `formatSignedPoints`, `describeEntry`); `scoreRows.ts` (`buildTeamScoreRows`, `TeamScoreRow`); `clockTime.ts` (`formatClockTime(iso, { locale?, timeZone? })`). All tested.
+> - `mvvm/listState.ts` (`listStateOf(loadable)` → `'loading' | 'error' | 'empty' | 'ready'`): the rule every list screen repeated. `TeamsViewModel` now uses it; the leaderboard and the admin screen do too.
+> - `components/TeamScoreList.tsx` (`observer`, props `rows`): rank, team icon and colour border, name (with "(You)" from the pack's copy on the viewer's team), total through `useFormatScore()`. Shared by both score screens.
+> - `features/scores/`: `LeaderboardViewModel` and `ScoresPage` (replaces the placeholder; same export).
+> - `features/admin/`: `AdminScoresViewModel` (standings, the sort, the picker's options; builds the two below), `AdjustmentEntryViewModel` (the form, on `FormSubmission`), `RecentAdjustmentsViewModel` (the list and Undo), and the views `AdminScoresPage` (replaces the placeholder), `AdjustmentEntryForm`, `RecentAdjustments`, `PlayerScoreList`. Each view model has a test; `ScoresPage.test.tsx` and `AdminScoresPage.test.tsx` run the real pages over MSW.
+> - `test/scoresScenario.ts`: `createScoresScenario({ viewer, teamCount, playerCount, adjustmentCount })` (signed-in viewer and a populated fake server, nothing loaded yet).
+>
+> **Deviations and decisions**
+> - **Negative scores are not zero-padded.** `formatScore` (`theme/formatScore.ts`) now gives `-50`, not `-00050` (the brief asked for a rule; F0's was sign-then-padding). Padding is the scoreboard's fixed-width look and a minus before a row of zeros reads as a different number. Its test changed with it.
+> - **Page order on `/admin/scores`:** team standings, the entry form, recent changes, and the player list **last**. The brief says team rows on top and player rows below; the form sits between them because the player list is the long one (40+ rows) and would bury the form on a phone.
+> - **The buttons carry the preview.** The result is on the buttons themselves ("Add +30", "Remove −30", with a real minus sign) and a line under the form shows the sum behind a multiplier ("3 × 10 = 30 points for Team 1"). Enter in a box adds; Remove is always a deliberate tap. After a successful save the form shows "Saved: +30 for Team 1", clears amount, multiplier and reason, and **keeps the chosen target** (scoring several questions for one team is the common case).
+> - **One picker for teams and players** (a native `<select>` with two groups). Teams are in the teams list's display order (until that list has loaded: the standings' order); players are always in the "by team" order, whatever the list on screen is sorted by, so the picker doesn't move under a finger. A chosen target that disappears (a team deleted) is treated as nothing chosen.
+> - **"Sort by Team" follows the Teams screen's order**, not the standings' (which are by total), so the admin view model also loads `TeamsStore`. A player with no team, or on a team the order doesn't list, comes last in that mode.
+> - **No confirmation on Undo.** The brief has none, and an undo row can't itself be undone, so a mis-tap is corrected by adding the points again; the list shows exactly what happened. `FormDialog` is there if the developer wants one. A failed Undo (typically the `409` "already undone") shows the server's sentence and reloads everything on screen, since the store reloads only after a success.
+> - **Team and player ledgers are said to be separate in words:** the form says which one the points go to, and the player list says its points are kept apart from the team totals (D25).
+> - **The admin's bottom-navigation "Scores" still goes to `/admin/scores`** (F3's decision). The leaderboard is not linked from there; an admin can open it by typing `/scores` (it shows no "(You)"). The standings at the top of the admin screen are the same list.
+> - **Time of an adjustment** is shown as hour and minute in the phone's own locale and zone (`formatClockTime`); the tests pass a locale and zone explicitly so they don't depend on the machine.
+> - **MobX:** state set after an `await` in the two new view models needed `runInAction` (the test setup's MobX-warning check caught it); nothing differed from the shared rules otherwise.
+> - **Checked:** lint, build, tests (1215). The app chunk is 494 kB: under Vite's 500 kB notice, but only just (the notice would return with the next sizeable feature; F9 may split the admin screens with a lazy route). **Not checked** (no browser, and manual testing is deferred): the brief's two-admin check (add, remove and undo for a team and a player; the player's `/scores` updating live; a second undo refused politely; both sorts); the look of both screens at 360 px with 13 teams and 40+ players in the arcade pack; tap-target size on the buttons and the picker. All of it is in `docs/ManualTestChecklist.md`, section 5.
+>
+> **Later steps must know**
+> - **F8:** `listStateOf` (`mvvm/listState`) and `formatClockTime` (`domain/clockTime`) are there for list screens and times. `formatSignedPoints` is for whole points only, so the host's buzz-offset line (`+0.21s`) is its own pure function. The host buttons have no form, so they need no `FormSubmission`; `Command` (one per button, or one shared) is enough.
+> - **F9:** the admin screens could be split into a lazy chunk if the bundle notice returns; `JoinViewModel`'s duplicate error mapping is still open (F3/F6 notes); the manual checks are in section 5 of the checklist.
 
 **Model:** Sonnet 5.5. **Read also:** PlanMVP D25, D26; Appendix A "Scores".
 
@@ -767,6 +794,8 @@ Teams and players change every year: 2026 has six teams; another year may have t
 ## F8 — Host and event admin
 
 **Model:** Sonnet 5.5. **Read also:** PlanMVP D10–D12, D29; Appendix A "Hub" and "Archive".
+
+**From F7:** `mvvm/listState.ts` (`listStateOf`) gives a list screen its loading / error / empty / ready state, and `domain/clockTime.ts` (`formatClockTime`) formats a server timestamp as hour and minute. Reuse `TeamQueue` / `buildQueueRows` (F5) for the queue. The admin's `/admin/scores` already offers scoring between rounds; the host screen needs no link to it beyond the bottom navigation.
 
 **From F2:** `services.archive` is the `ArchiveApi` (no store). `finalize()` returns the event id the export link needs. F2 also added `exportArchive(eventId)`, which holds the file in memory as a `Blob`: not wanted here (see the last Watch-out). Use the plain link and delete that method and `ApiClient.download` if nothing else uses them.
 
@@ -1021,3 +1050,8 @@ End-to-end tests are a later addition (PlanMVP §11). Each step appends the scen
 | F6 | Keyboard only on /teams as an admin: open a ⋮ menu, pick Move to…, choose a team, confirm; focus returns to the ⋮ button | Fluent's menu and dialog focus handling only exist in a real browser |
 | F6 | /teams at 360 px with 13 teams, 24-character team names and 20-character display names, in both packs: no horizontal scroll, menus and dialogs fit, the Add team picker reads well | Layout and Press Start 2P glyph widths only exist in a real rendering engine |
 | F6 | Add a team with a spare colour on one phone: it appears on a second phone and in the join screen's team list, with that colour | A real create, a real hub message and the join route's list |
+| F7 | Two admins add points to the same team at the same moment (and one taps Undo on a row the other just undid): both screens end with the same totals and recent list, the second undo is refused with the server's sentence | Two real sessions, two real hub connections and the server's ledger; the tests fake the server |
+| F7 | The player's `/scores` on a second device updates (total and order) without a reload when an admin adds points | A real `ScoresChanged` over the hub to another device |
+| F7 | `/admin/scores` at 360 px with 13 teams, 24-character team names and 45 players, in both packs: no horizontal scroll, the picker, buttons ("Remove −30") and rows fit; the form isn't buried under the player list | Layout and Press Start 2P glyph widths only exist in a real rendering engine |
+| F7 | A negative team and player total shows `-15`, never a padded `-00015`, in the arcade pack | Real fonts and the pack's digit padding together |
+| F7 | A player opens `/admin/scores` by address and is sent to `/play`; the server answers 403 to the admin score lists for a player's cookie | The route guard plus the server's refusal, with a real cookie |
