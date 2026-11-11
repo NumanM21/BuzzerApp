@@ -100,6 +100,43 @@ public sealed class WriteNotificationTests(ApiFactory factory) : IDisposable
         AssertNotifiedOnce(spy, ref teams, ref scores);
     }
 
+    // Without this the Teams screen is not a live lobby: people who joined earlier would not see who joins after them.
+    [Fact]
+    public async Task Registering_notifies_teams_and_scores_once()
+    {
+        var (spy, client) = NewSpiedBrowser();
+        int teams = spy.Teams, scores = spy.Scores;
+
+        await client.RegisterNewPlayerOnAsync(factory);
+
+        AssertNotifiedOnce(spy, ref teams, ref scores);
+    }
+
+    [Fact]
+    public async Task Rejected_registrations_and_every_sign_in_notify_nobody()
+    {
+        var (spy, client) = NewSpiedBrowser();
+        var teamId = await factory.FirstTeamIdAsync();
+        var realName = ApiHelpers.UniqueName("SpyR");
+        (await client.RegisterAsync(realName, ApiHelpers.UniqueName("SpyD"), teamId)).EnsureSuccessStatusCode();
+        int teams = spy.Teams, scores = spy.Scores;
+
+        var responses = new[]
+        {
+            await client.RegisterAsync(realName, ApiHelpers.UniqueName("SpyD"), teamId),                                                  // 409 real name taken
+            await client.RegisterAsync(ApiHelpers.UniqueName("SpyR"), "A", teamId),                                                      // 400
+            await client.RegisterAsync(ApiHelpers.UniqueName("SpyR"), ApiHelpers.UniqueName("SpyD"), teamId, joinCode: "NOT-THE-CODE"),   // 404
+            await client.SignInAsync(realName),                                                                                          // 200, but nothing anyone else sees has changed
+            await client.SignInAsync(realName, pin: "0000"),                                                                             // 401
+        };
+
+        Assert.Equal(
+            [HttpStatusCode.Conflict, HttpStatusCode.BadRequest, HttpStatusCode.NotFound, HttpStatusCode.OK, HttpStatusCode.Unauthorized],
+            responses.Select(r => r.StatusCode).ToArray());
+        Assert.Equal(teams, spy.Teams);
+        Assert.Equal(scores, spy.Scores);
+    }
+
     [Fact]
     public async Task Rejected_and_no_op_writes_notify_nobody()
     {
@@ -197,9 +234,10 @@ public sealed class WriteNotificationTests(ApiFactory factory) : IDisposable
         // A player is turned away before the handler runs (a separate spy, since this one's client is the admin).
         var (playerSpy, playerClient) = NewSpiedBrowser();
         await playerClient.RegisterNewPlayerOnAsync(factory);
+        var scoresAfterJoining = playerSpy.Scores;   // registering is itself a write that notifies
         var forbidden = await playerClient.PostAsJsonAsync("/api/scores/adjustments", new { target = "team", targetId = teamId, amount = 5, direction = "add" });
         Assert.Equal(HttpStatusCode.Forbidden, forbidden.StatusCode);
-        Assert.Equal(0, playerSpy.Scores);
+        Assert.Equal(scoresAfterJoining, playerSpy.Scores);
     }
 }
 
