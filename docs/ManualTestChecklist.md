@@ -2,7 +2,7 @@
 
 > **Audience:** the developer, who does this pass once every B and F step is done (decided 11 Nov 2026, `docs/DecisionLog.md`), and the AI workers who feed it.
 > **Why it exists:** a step is "done" when lint, build and tests pass, which proves nothing about a real phone, a real server or how the app feels. Everything those checks can't prove is collected here, so the developer gets one ordered walkthrough instead of hunting through twenty DONE notes.
-> Written 11 Nov 2026 from the F0–F6 briefs and DONE notes. **F7–F9 add their rows as they finish.**
+> Written 11 Nov 2026 from the F0–F6 briefs and DONE notes. F7 added section 5. **F8–F9 add their rows as they finish.**
 
 ## For AI workers: how to feed this file
 
@@ -98,11 +98,32 @@ How to read the table: **[ ]** tick when it behaved as described. If it didn't, 
 | [ ] | F6 | `/teams` at 360 px with 13 teams, 24-character team names and 20-character display names | No horizontal scroll; menus and dialogs fit the screen | phone |
 | [ ] | F6 | A player types `/admin` or `/admin/scores` in the address bar | They are sent back to `/play` | phone |
 
-## 5. Scores (added by F7)
+## 5. Scores
+
+Have the admin scoring screen (**Scores** in the admin's bottom navigation, `/admin/scores`) open on one device and a player's **Scores** (`/scores`) on a phone. The player's screen is the leaderboard; an admin can also open it by typing `/scores`.
 
 | | Step | Do this | Expect | Needs |
 |---|---|---|---|---|
-| | | *(F7 adds its rows here)* | | |
+| [ ] | F7 | As a player open Scores | Every team in the server's order with its rank and total; your own team says "(You)" in words; no form, no player list, nothing to tap | phone |
+| [ ] | F7 | In the arcade pack look at a total of 0 and of 120 | Padded to five digits (`00000`, `00120`) in the number font | phone |
+| [ ] | F7 | As the admin add the same points to two teams that are first on the board | Both rows show the same rank (for example 1, 1, 3), not 1, 2, 3 | 2 devices |
+| [ ] | F7 | Keep the player's Scores open; the admin adds points to a team | The total and the order change on the player's phone within a second, with no refresh | 2 devices |
+| [ ] | F7 | As the admin open Scores | Top to bottom: team standings, "Add or remove points", "Recent changes", "Players". No horizontal scroll at 360 px with 13 teams, 24-character team names and 40 or more players | phone |
+| [ ] | F7 | Pick a team, Points `10`, Multiplier `3` (don't tap anything yet) | The buttons read "Add +30" and "Remove −30", and a line says "3 × 10 = 30 points for <team>" | phone |
+| [ ] | F7 | Tap "Add +30" | "Saved: +30 for <team>"; the team's total rises by 30 and may move up; the top of "Recent changes" shows +30, the team, who did it and the time (your local time); Points, Multiplier and Reason reset, the team stays chosen | phone |
+| [ ] | F7 | Pick a team, Points `5`, Reason `Wrong answer`, tap "Remove −5" | Total falls by 5; the recent list shows −5 with the reason | phone |
+| [ ] | F7 | Remove more points than a team has | The total shows a minus sign and no zero padding (`-15`, not `-00015`), in both packs | phone |
+| [ ] | F7 | Add points to a **player** | The player's total in "Players" rises; the team's total does **not** change; the form said "These points go to the player only, not to their team's total" | phone |
+| [ ] | F7 | Tap Add with nothing filled in; then Points `0`, `2.5`, `-4`; then Multiplier `0` and `101`; then a 201-character reason | Each mistake gets a message next to its box, nothing is sent, nothing changes on the board | phone |
+| [ ] | F7 | Tap "Add" twice quickly | Only one entry appears in "Recent changes" | phone |
+| [ ] | F7 | Turn the network off, tap Add, turn it on, tap Add again | A "could not reach the server" message while off, what you typed stays; the second tap saves once | phone |
+| [ ] | F7 | Tap Undo on an addition | The total goes back; a new row says "Undoes an earlier change"; the original now says "Undone"; neither has an Undo button | phone |
+| [ ] | F7 | Two admins: admin A taps Undo on a row; admin B (list not yet refreshed, or offline for a moment) taps Undo on the same row | B sees a polite sentence from the server and the list refreshes with the row marked "Undone"; nothing breaks and nothing is undone twice | 2 admins |
+| [ ] | F7 | Two admins add points to the same team at the same moment | Both screens end with the same total and both entries in the recent list | 2 admins |
+| [ ] | F7 | In "Players" choose "Sort by Team", then "Sort by Score" | Team: the teams in the order of the Teams screen, names A–Z within a team, players with no team last. Score: highest first, equal scores A–Z, negatives last | phone |
+| [ ] | F7 | Rename a team (or add one) on the Teams screen, then look at the "Team or player" picker | The picker has the new name; it lists teams first, then players as "Name (Team)"; if the chosen team was deleted, nothing is chosen any more | 2 admins |
+| [ ] | F7 | As a player type `/admin/scores` in the address bar | You are sent back to `/play` | phone |
+| [ ] | F7 | Look at Scores in the arcade pack at 360 px: the form's buttons, the picker and the rows with the longest names | Text fits and wraps instead of clipping; buttons are finger-sized; every state (error, saved, undone) is shown in words, not only colour | phone |
 
 ## 6. Host screen and event admin (added by F8)
 
