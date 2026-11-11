@@ -3,6 +3,7 @@ import {
   Field,
   Input,
   makeStyles,
+  mergeClasses,
   MessageBar,
   MessageBarActions,
   MessageBarBody,
@@ -23,10 +24,9 @@ import { JoinViewModel } from './JoinViewModel';
 import { TAP_TARGET } from '@/components/sizes';
 
 const useStyles = makeStyles({
-  page: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: tokens.spacingVerticalL,
+  // Added to the shared page frame: the join screen is shown outside the app shell, which is what gives every other
+  // screen its side padding and keeps it from stretching across a wide window.
+  outsideShell: {
     boxSizing: 'border-box',
     maxWidth: '32rem',
     margin: '0 auto',
@@ -82,7 +82,7 @@ export const JoinPage = observer(function JoinPage() {
   };
 
   return (
-    <main className={page.page}>
+    <main className={mergeClasses(page.page, styles.outsideShell)}>
       <div>
         {vm.eventName && <p className={styles.eventName}>{vm.eventName}</p>}
         <h1 className={page.title}>Join the game</h1>
