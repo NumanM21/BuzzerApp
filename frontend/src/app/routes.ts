@@ -1,14 +1,12 @@
 import { createBrowserRouter, type DataRouter, type RouteObject } from 'react-router';
 import { appPaths } from '@/domain/paths';
-import { AdminEventPage } from '@/features/admin/AdminEventPage';
-import { AdminPage } from '@/features/admin/AdminPage';
-import { AdminScoresPage } from '@/features/admin/AdminScoresPage';
 import { JoinPage } from '@/features/join/JoinPage';
 import { PlayPage } from '@/features/play/PlayPage';
 import { ScoresPage } from '@/features/scores/ScoresPage';
 import { ShellLayout } from '@/features/shell/ShellLayout';
 import { TeamsPage } from '@/features/teams/TeamsPage';
 import { AdminGuard, AnonymousOnlyGuard, PlayerGuard, SignedInGuard, StartRedirect } from './guards';
+import { LazyAdminEventPage, LazyAdminPage, LazyAdminScoresPage } from './lazyAdminPages';
 
 // Route paths never contain a dot: the server treats a path whose last segment has a dot as a file, not a page.
 export function createAppRoutes(): RouteObject[] {
@@ -29,9 +27,9 @@ export function createAppRoutes(): RouteObject[] {
             {
               Component: AdminGuard,
               children: [
-                { path: appPaths.adminHost, Component: AdminPage },
-                { path: appPaths.adminScores, Component: AdminScoresPage },
-                { path: appPaths.adminEvent, Component: AdminEventPage },
+                { path: appPaths.adminHost, Component: LazyAdminPage },
+                { path: appPaths.adminScores, Component: LazyAdminScoresPage },
+                { path: appPaths.adminEvent, Component: LazyAdminEventPage },
               ],
             },
           ],
