@@ -3,6 +3,7 @@ import type { Member, Team } from '@/api/types';
 import { isRoundRunning } from '@/domain/round';
 import type { PackKeys, ThemeCatalog } from '@/domain/themeCatalog';
 import { Loadable } from '@/mvvm/Loadable';
+import { listStateOf, type ListState } from '@/mvvm/listState';
 import type { EventStore } from '@/stores/EventStore';
 import type { RoundStore } from '@/stores/RoundStore';
 import type { SessionStore } from '@/stores/SessionStore';
@@ -43,7 +44,7 @@ export type TeamsDialog =
   | { kind: 'addTeam'; vm: AddTeamViewModel }
   | { kind: 'deleteTeam'; vm: DeleteTeamViewModel };
 
-export type TeamsScreenState = 'loading' | 'error' | 'empty' | 'ready';
+export type TeamsScreenState = ListState;
 
 /**
  * The shared Teams screen. Players see every team and edit their own names; admins also rename, add and delete
@@ -91,11 +92,7 @@ export class TeamsViewModel {
   }
 
   get state(): TeamsScreenState {
-    const list = this.teams.teams;
-    if (list.value === undefined) {
-      return list.status === 'error' ? 'error' : 'loading';
-    }
-    return list.value.length === 0 ? 'empty' : 'ready';
+    return listStateOf(this.teams.teams);
   }
 
   /** Why the last load failed. With a list on screen it is stale rather than missing: show both. */
