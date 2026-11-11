@@ -1,9 +1,8 @@
-import { makeStyles, mergeClasses, shorthands, tokens } from '@fluentui/react-components';
+import { makeStyles, mergeClasses, tokens } from '@fluentui/react-components';
 import { observer } from 'mobx-react-lite';
 import { useId } from 'react';
-import { appTokens } from '@/theme/appTokens';
 import { useTeamVisual } from '@/theme/useTeamVisual';
-import { TAP_TARGET } from './sizes';
+import { RadioCard, RadioCardGroup } from './RadioCards';
 
 export interface TeamStylePickerProps {
   legend: string;
@@ -19,51 +18,6 @@ export interface TeamStylePickerProps {
 }
 
 const useStyles = makeStyles({
-  group: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: tokens.spacingVerticalS,
-    minWidth: 0,
-    margin: 0,
-    padding: 0,
-    ...shorthands.border('0', 'none', tokens.colorTransparentStroke),
-  },
-  legend: {
-    paddingBottom: tokens.spacingVerticalXS,
-    fontWeight: tokens.fontWeightSemibold,
-  },
-  options: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 9rem), 1fr))',
-    gap: tokens.spacingHorizontalS,
-  },
-  option: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: tokens.spacingHorizontalS,
-    minWidth: 0,
-    minHeight: TAP_TARGET,
-    padding: tokens.spacingHorizontalS,
-    cursor: 'pointer',
-    backgroundColor: appTokens.surfacePanel,
-    ...shorthands.border(appTokens.borderWidth, appTokens.borderStyle, appTokens.surfacePanelBorder),
-    borderRadius: tokens.borderRadiusMedium,
-    ':focus-within': {
-      outline: `${tokens.strokeWidthThick} solid ${tokens.colorStrokeFocus2}`,
-      outlineOffset: '2px',
-    },
-  },
-  // Chosen is shown by the filled radio, a heavier label and the shadow, never by colour alone.
-  optionSelected: {
-    boxShadow: appTokens.shadow,
-    fontWeight: tokens.fontWeightBold,
-  },
-  radio: {
-    flexShrink: 0,
-    width: '20px',
-    height: '20px',
-    margin: 0,
-  },
   swatch: {
     flexShrink: 0,
     width: '32px',
@@ -89,9 +43,8 @@ const useStyles = makeStyles({
     minWidth: 0,
     overflowWrap: 'anywhere',
   },
-  error: {
-    margin: 0,
-    color: tokens.colorPaletteRedForeground1,
+  labelSelected: {
+    fontWeight: tokens.fontWeightBold,
   },
 });
 
@@ -108,32 +61,22 @@ export const TeamStylePicker = observer(function TeamStylePicker({
   onSelect,
   errorText,
 }: TeamStylePickerProps) {
-  const styles = useStyles();
   const groupName = useId();
-  const errorId = useId();
 
   return (
-    <fieldset className={styles.group} aria-describedby={errorText ? errorId : undefined}>
-      <legend className={styles.legend}>{legend}</legend>
-      <div className={styles.options}>
-        {keys.map((key) => (
-          <StyleOption
-            key={key}
-            kind={kind}
-            optionKey={key}
-            previewColorKey={previewColorKey}
-            groupName={groupName}
-            selected={key === selectedKey}
-            onSelect={onSelect}
-          />
-        ))}
-      </div>
-      {errorText && (
-        <p id={errorId} className={styles.error}>
-          {errorText}
-        </p>
-      )}
-    </fieldset>
+    <RadioCardGroup legend={legend} density="compact" errorText={errorText}>
+      {keys.map((key) => (
+        <StyleOption
+          key={key}
+          kind={kind}
+          optionKey={key}
+          previewColorKey={previewColorKey}
+          groupName={groupName}
+          selected={key === selectedKey}
+          onSelect={onSelect}
+        />
+      ))}
+    </RadioCardGroup>
   );
 });
 
@@ -159,14 +102,14 @@ const StyleOption = observer(function StyleOption({
   const visual = useTeamVisual(kind === 'color' ? optionKey : (previewColorKey ?? ''), kind === 'icon' ? optionKey : '');
 
   return (
-    <label className={mergeClasses(styles.option, selected && styles.optionSelected)} style={{ '--team-fill': visual.fill }}>
-      <input
-        className={styles.radio}
-        type="radio"
-        name={groupName}
-        checked={selected}
-        onChange={() => onSelect(optionKey)}
-      />
+    <RadioCard
+      groupName={groupName}
+      selected={selected}
+      onSelect={() => onSelect(optionKey)}
+      teamFill={visual.fill}
+      frame="neutral"
+      density="compact"
+    >
       {kind === 'color' ? (
         <span className={styles.swatch} aria-hidden />
       ) : (
@@ -175,7 +118,9 @@ const StyleOption = observer(function StyleOption({
           <img className={styles.icon} src={visual.iconUrl} alt="" />
         </span>
       )}
-      <span className={styles.label}>{optionKey.replaceAll('-', ' ')}</span>
-    </label>
+      <span className={mergeClasses(styles.label, selected && styles.labelSelected)}>
+        {optionKey.replaceAll('-', ' ')}
+      </span>
+    </RadioCard>
   );
 });
