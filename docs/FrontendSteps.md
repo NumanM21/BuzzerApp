@@ -1018,7 +1018,7 @@ interface RoundResult { success: boolean; error: string | null; changed: boolean
 |---|---|---|---|
 | server → client | `RoundUpdated(PublicRoundSnapshot)` | everyone | Also sent once to each connection when it connects |
 | server → client | `AdminRoundUpdated(AdminRoundSnapshot)` | admins | Also sent on connect to an admin |
-| server → client | `TeamsChanged()` / `ScoresChanged()` | everyone | No payload: reload the data |
+| server → client | `TeamsChanged()` / `ScoresChanged()` | everyone | No payload: reload the data. Sent after every successful write to teams, players and scores, and after a registration |
 | client → server | `Buzz()` | players | No arguments. Returns `RoundResult` |
 | client → server | `BeginRound()`, `NextTeam()`, `ResetRound()` | admins | No arguments. Return `RoundResult`. A non-admin call is rejected with an error, not a `RoundResult` |
 

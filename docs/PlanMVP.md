@@ -363,7 +363,7 @@ Admins sign in through `/signin` (no team).
 | GET | `/api/scores/adjustments?take=20` | admin | Recent ledger rows with target names |
 | POST | `/api/scores/adjustments/{id}/reverse` | admin | Adds an equal-and-opposite row; `409` if already reversed |
 
-Every successful write in 8.3–8.5 sends `TeamsChanged` and/or `ScoresChanged`.
+Every successful write in 8.3–8.5 sends `TeamsChanged` and/or `ScoresChanged`. So does a successful registration (8.2; added in F9, 11 Nov 2026): a new player is a new name on everyone's Teams screen.
 
 ### 8.6 Archive (MVP-minimal)
 | Method | Route | Auth | Notes |
