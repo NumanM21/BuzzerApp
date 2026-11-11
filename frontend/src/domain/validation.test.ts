@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { PERSON_NAME_MAX_LENGTH, PERSON_NAME_MIN_LENGTH } from './names';
+import {
+  PERSON_NAME_MAX_LENGTH,
+  PERSON_NAME_MIN_LENGTH,
+  TEAM_NAME_MAX_LENGTH,
+  TEAM_NAME_MIN_LENGTH,
+} from './names';
 import {
   sanitizePin,
   validateJoinCode,
@@ -7,6 +12,7 @@ import {
   validatePersonName,
   validatePin,
   validateTeamChoice,
+  validateTeamName,
   type JoinFormValues,
 } from './validation';
 
@@ -93,5 +99,25 @@ describe('validateJoinForm', () => {
 
   it('asks a signing-in person for the code, name and PIN only', () => {
     expect(Object.keys(validateJoinForm('signIn', empty)).sort()).toEqual(['joinCode', 'pin', 'realName']);
+  });
+});
+
+describe('validateTeamName', () => {
+  it.each([
+    ['empty', ''],
+    ['one character', 'a'],
+    ['padding only', '   '],
+    ['one over the maximum', 'a'.repeat(TEAM_NAME_MAX_LENGTH + 1)],
+  ])('rejects %s', (_, name) => {
+    expect(validateTeamName(name)).toBe(`Use ${TEAM_NAME_MIN_LENGTH} to ${TEAM_NAME_MAX_LENGTH} characters`);
+  });
+
+  it.each([
+    ['the minimum', 'a'.repeat(TEAM_NAME_MIN_LENGTH)],
+    ['the maximum', 'a'.repeat(TEAM_NAME_MAX_LENGTH)],
+    ['the maximum with padding (trimmed first)', ` ${'a'.repeat(TEAM_NAME_MAX_LENGTH)} `],
+    ['a person-name maximum plus more (allowed for a team)', 'a'.repeat(PERSON_NAME_MAX_LENGTH + 4)],
+  ])('accepts %s', (_, name) => {
+    expect(validateTeamName(name)).toBeUndefined();
   });
 });
