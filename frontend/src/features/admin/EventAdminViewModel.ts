@@ -10,7 +10,7 @@ import { FormSubmission } from '@/mvvm/FormSubmission';
  * **Export needs a Finalize first, in this session.** The export link needs the event's id, and only the finalize
  * call returns it. That is acceptable because finalizing again is harmless (it replaces the archive), but it means
  * a host who opens this screen fresh must finalize before they can export. Showing Export straight away would need
- * the event id on `GET /api/event` (a backend change); that is a decision for F9 and the developer.
+ * the event id on `GET /api/event` (a backend change), which was judged not worth it for the MVP.
  *
  * **The file never passes through the app.** It holds real names, so Export is a plain link the browser follows and
  * saves; nothing here fetches, keeps or stores it.
