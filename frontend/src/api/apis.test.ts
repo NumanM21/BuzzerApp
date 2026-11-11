@@ -132,12 +132,9 @@ describe('the API classes', () => {
     const { sent, archive } = createApis();
 
     const finalized = await archive.finalize();
-    const file = await archive.exportArchive(finalized.eventId);
 
-    expect(file.fileName).toBe('buzzer-archive-2030.json');
-    expect(sent).toEqual([
-      { method: 'POST', url: '/api/archive/finalize', body: undefined },
-      { method: 'GET', url: '/api/archive/1/export', body: undefined },
-    ]);
+    // The export is a link the browser follows, never a request this app makes.
+    expect(archive.exportUrl(finalized.eventId)).toBe('/api/archive/1/export');
+    expect(sent).toEqual([{ method: 'POST', url: '/api/archive/finalize', body: undefined }]);
   });
 });

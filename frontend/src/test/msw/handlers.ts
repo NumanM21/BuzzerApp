@@ -68,14 +68,4 @@ export const defaultHandlers: HttpHandler[] = [
   }),
 
   http.post('/api/archive/finalize', () => HttpResponse.json(makeFinalizeResponse())),
-  http.get(
-    '/api/archive/:eventId/export',
-    () =>
-      new HttpResponse('{"archive":true}', {
-        headers: {
-          'Content-Type': 'application/json',
-          'Content-Disposition': 'attachment; filename="buzzer-archive-2030.json"',
-        },
-      }),
-  ),
 ];

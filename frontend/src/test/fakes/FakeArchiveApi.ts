@@ -1,4 +1,3 @@
-import type { Download } from '@/api/ApiClient';
 import type { ArchiveApi } from '@/api/ArchiveApi';
 import type { FinalizeResponse } from '@/api/types';
 import { makeFinalizeResponse } from '@/test/factories';
@@ -7,7 +6,6 @@ import { CallRecorder } from './CallRecorder';
 /** In-memory `ArchiveApi`. `failNext(error)` makes the next call reject; `calls` records what was called. */
 export class FakeArchiveApi implements ArchiveApi {
   finalizeResponse: FinalizeResponse = makeFinalizeResponse();
-  file: Download = { blob: new Blob(['{}']), fileName: 'buzzer-archive-2030.json' };
 
   private readonly recorder = new CallRecorder();
 
@@ -28,7 +26,8 @@ export class FakeArchiveApi implements ArchiveApi {
     return this.recorder.run('finalize', () => this.finalizeResponse);
   }
 
-  exportArchive(): Promise<Download> {
-    return this.recorder.run('exportArchive', () => this.file);
+  // Not a call: a link is only an address, so nothing is recorded.
+  exportUrl(eventId: number): string {
+    return `/api/archive/${eventId}/export`;
   }
 }

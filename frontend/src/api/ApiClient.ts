@@ -12,12 +12,6 @@ export interface RequestOptions {
   query?: Record<string, string | number | undefined>;
 }
 
-export interface Download {
-  blob: Blob;
-  /** From the `Content-Disposition` header, when the server names the file. */
-  fileName: string | undefined;
-}
-
 /**
  * The only place that calls `fetch`. Paths are relative (`/api/...`): the built app is served by the API from the
  * same origin, so there is no base URL and no CORS, and the browser sends the session cookie by itself.
@@ -51,19 +45,6 @@ export class ApiClient {
 
   delete<T = void>(path: string, options?: RequestOptions): Promise<T> {
     return this.requestJson<T>('DELETE', path, undefined, options);
-  }
-
-  /** For a route that answers with a file rather than JSON (the archive export). */
-  async download(path: string, options?: RequestOptions): Promise<Download> {
-    const response = await this.send('GET', path, undefined, options);
-    try {
-      return {
-        blob: await response.blob(),
-        fileName: fileNameFrom(response.headers.get('Content-Disposition')),
-      };
-    } catch {
-      throw ApiError.network();
-    }
   }
 
   private async requestJson<T>(method: string, path: string, body: unknown, options?: RequestOptions): Promise<T> {
@@ -128,10 +109,4 @@ function withQuery(path: string, query: RequestOptions['query']): string {
   }
   const text = parameters.toString();
   return text.length > 0 ? `${path}?${text}` : path;
-}
-
-/** Reads `filename="x"` or `filename=x`; the server's file names are plain ASCII, so `filename*=` isn't handled. */
-function fileNameFrom(contentDisposition: string | null): string | undefined {
-  const match = contentDisposition ? /filename="?([^";]+)"?/i.exec(contentDisposition) : null;
-  return match?.[1];
 }
