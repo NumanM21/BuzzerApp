@@ -1040,7 +1040,25 @@ A repeated buzz from the same player returns `success: true, changed: false`.
 
 ## Appendix B — Playwright backlog (not part of the MVP)
 
-End-to-end tests are a later addition (PlanMVP §11). Each step appends the scenarios from its brief that it still thinks are worth automating, plus any it discovered. F9 puts them in priority order.
+**A post-MVP to-do (PlanMVP §11, O10).** The MVP's automated bar is the unit and integration tests (D32); nothing here blocks deployment. Each step appended the scenarios it thought worth automating; F9 added its own and put the list in priority order.
+
+**The five to automate first** (each replaces several rows of the table below):
+
+1. **One full round on several devices:** a host and three players on two teams. Begin, two near-simultaneous buzzes and a teammate's, the automatic lock, Next team to the end, Reset. Every screen agrees at each step. Covers the F4, F5 and F8 round rows: real cookies, a real hub, the server's own timing.
+2. **The API restarts in the middle of a round:** every client says so, reconnects by itself, shows the idle round and stays signed in, with no reload. This is the lifecycle bug class that unit tests can't reach (F4).
+3. **No screen is wider than a 360 px phone:** every screen, both packs, 3, 8 and 13 teams, the longest names. Measure the document's width against 360. F9 found three real faults this way (M5 twice, M7) that jsdom cannot see, because it has no layout.
+4. **Join from start to finish:** register, refresh, sign out, Back, sign in; an unknown code, a taken display name, a taken real name ("Sign in instead"), a wrong PIN, the rate limit (F3).
+5. **Dialogs give the page back:** after Save, Cancel and Escape the page is not left `aria-hidden` and the focus is on the button that opened the dialog; then the same with the keyboard only (H2, M6, F6).
+
+After those: a player promoted while connected (F4), changes reaching a second device (F6, F7), the error screen when a file does not arrive (H1), a session that ends while connected (M2), finalize and download (F8).
+
+**A starting point exists, outside the repo.** For its live walkthrough F9 wrote a throwaway Playwright script (`playwright-core` driving the installed Edge, six browser contexts at 360 px, the published API in Production mode against its own PostgreSQL container). It makes 106 checks and covers items 1, 2, 4 and most of 3 and 5 above, plus scores, team admin, promotion, the guards, finalize and export, H1 and M2. It passed in four set-ups (arcade pack with six and with eight teams, `default` pack with three, and through the Vite dev server). It was not committed: it is a script, not a test suite (one long run, fixed waits in places, no fixtures). What it taught, for whoever writes the real thing:
+
+- The ready buzzer pulses, and Playwright waits for an element to stop moving before it taps. Use `tap({ force: true })`, or emulate reduced motion.
+- A phone-emulated page widens itself to fit content that is too wide, so compare `scrollWidth` with the configured viewport width, not with `clientWidth`. When a page is too wide, clicks also land in the wrong place ("… intercepts pointer events").
+- Once a team is in the queue its teammates' buzzers stop being pressable, so a "not counted" buzz needs both presses in one `Promise.all`.
+- Role queries need `exact: true` ("Extra 1" matches "Extra 10"), and Fluent's message bar is `role="group"`, not `alert`.
+- A new join code is a new, empty event, so every run can start clean against one database.
 
 | Step | Scenario | Why it needs a real browser |
 |---|---|---|
@@ -1084,3 +1102,9 @@ End-to-end tests are a later addition (PlanMVP §11). Each step appends the scen
 | F8 | Finalize, then click Download: a file named `buzzer-archive-<year>.json` is saved and the page stays on the Event screen | A real browser download of a real response; jsdom doesn't download |
 | F8 | A player's browser opening `/api/archive/1/export` gets a refusal and no file; a player opening `/admin/event` lands on `/play` | The server's authorization with a real cookie, plus the route guard |
 | F8 | As a player nothing named `Admin…` is requested in the network log; as an admin the first visit to Host fetches its chunk and shows a spinner, not a blank page | Real code-splitting and network timing |
+| F9 | Block the request for an admin screen's file, open that screen: the error screen with Reload shows, the header and navigation stay, another screen can still be opened; unblock and Reload brings the screen back, still signed in (H1) | A real failed download of a real code-split file; jsdom loads nothing |
+| F9 | Open and close every dialog by Save, Cancel and Escape: `#root` has no `aria-hidden` afterwards and the focus is on the button that opened it (H2, M6) | Fluent's focus and `aria-hidden` handling only run for real in a browser; jsdom showed neither fault |
+| F9 | Clear a connected player's cookie and drop the connection: the app reaches the join screen by itself instead of "Reconnecting…" for ever (M2) | A real cookie, a real refused reconnect and real retry timing |
+| F9 | The admin Scores screen at 360 px with a 24-character team name is exactly 360 px wide; Points and Multiplier sit side by side (M5) | Grid and intrinsic input widths need a layout engine |
+| F9 | The join screen keeps its side padding at 360 px and is a centred column in a wide window (M7) | A look; nothing in jsdom measures it |
+| F9 | With the API stopped the app shows "Try again" in the default theme; after the API starts, "Try again" brings the event's name and theme with no reload (M1; replaces the F2 row above, which asked whether this was acceptable) | A real server coming back |
