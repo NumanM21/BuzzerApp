@@ -19,9 +19,9 @@ export interface TeamCardProps {
   colorKey: string;
   iconKey: string;
   members: readonly TeamCardMember[];
-  /** Slot at the top right of the card, for example the admin's ⋮ menu (F6). */
+  /** Slot at the top right of the card, for example the admin's ⋮ menu. */
   action?: ReactNode;
-  /** Slot at the end of each member row, for example "edit names" (F6). */
+  /** Slot at the end of each member row, for example "edit names". */
   renderMemberAction?: (member: TeamCardMember) => ReactNode;
 }
 

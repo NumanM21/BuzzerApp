@@ -37,7 +37,7 @@ export interface AppServices {
   /** The server's time, for anything measured against a time the server sent. */
   clock: ServerClock;
   /**
-   * No store for these two: the join teams belong to one join code and are fetched on demand (F3's join screen),
+   * No store for these two: the join teams belong to one join code and are fetched on demand (the join screen),
    * and finalizing and exporting are one-off host actions with nothing to keep.
    */
   eventApi: EventApi;
