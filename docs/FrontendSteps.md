@@ -2,7 +2,7 @@
 
 > **Audience:** AI workers implementing one step each in a fresh session, and the developer who starts and reviews them.
 > Adds implementation detail to `docs/PlanMVP.md` §10 Milestone F. **PlanMVP wins on product decisions; this file wins on frontend implementation detail.**
-> Written 10 Nov 2026. **F0–F4 are done: start at F5.**
+> Written 10 Nov 2026. **F0–F5 are done: start at F6.**
 >
 > The backend is finished and is not changed by these steps. If a step seems to need a backend change, stop and ask the developer.
 
@@ -13,7 +13,7 @@
 | F2 | `frontend-f2` — **DONE** | Sonnet 5.5 | API client, wire types, one API class per feature, stores, MSW handlers, test factories |
 | F3 | `frontend-f3` — **DONE** | Sonnet 5.5 | `/join` (new player / sign in), route guards, layout shell + navigation |
 | F4 | `frontend-f4` — **DONE** | **Opus 5.5** | SignalR connection, round store, server clock, session and connection lifecycle, buzzer state rule |
-| F5 | `frontend-f5` | Sonnet 5.5 | `/play`: buzzer and team queue |
+| F5 | `frontend-f5` — **DONE** | Sonnet 5.5 | `/play`: buzzer and team queue |
 | F6 | `frontend-f6` | Sonnet 5.5 | `/teams`: team cards, edit names, rename, move, make admin, create and delete team |
 | F7 | `frontend-f7` | Sonnet 5.5 | `/scores` leaderboard; `/admin/scores` adjustments and undo |
 | F8 | `frontend-f8` | Sonnet 5.5 | `/admin` host screen; `/admin/event` finalize and export |
@@ -603,7 +603,27 @@ Teams and players change every year: 2026 has six teams; another year may have t
 
 ---
 
-## F5 — Play
+## F5 — Play — DONE
+
+> **Done 11 Nov 2026. Kept for reference; do not redo.**
+>
+> **What exists** (`frontend/src/`)
+> - `domain/queueRows.ts`: `QueueRow`, `TeamLook`, `UNKNOWN_TEAM_KEY` (`''`: matches no pack key, so the theme gives the fallback colour and icon) and `buildQueueRows(queue, myTeamId, looks)`, which keeps the server's order. `domain/roundErrors.ts` gained `isUndeliveredRoundError(code)` (true for `client.offline` and `client.failed`: the server never ruled, so the press may be repeated).
+> - `components/TeamQueue.tsx` (`observer`, props `rows`): place, team icon and colour border, snapshot name (with "(You)" from the pack's copy on the viewer's team), "Buzzed by …", and the turn in words (Answering / Waiting / Out); the answering row is bold with the pack's shadow. Names wrap.
+> - `features/play/PlayViewModel.ts` (`round`, `session`, `teams`) and `PlayPage.tsx` (replaces the placeholder; same export). Tests: the view model (every state, `canBuzz` in each combination, one buzz per round, every error code, the queue over 1, 2, 6 and 13 teams, a missing team), `TeamQueue`, `queueRows`, `isUndeliveredRoundError`, and one flow through the real page (open → press → "Sent" → in line #2 → your team is up; "You're in from the next round"; disconnected).
+> - `/dev/theme` has a "Team queue" section (`ThemePreviewViewModel.sampleQueue`: any team count, in the opposite order to the team list, one row answering, the last with the fallback look).
+>
+> **Deviations and decisions**
+> - **"One buzz per ready state" is keyed to the round, not to the state.** A press stores the round's id (`attemptedRoundId`); `canBuzz` stays false while the snapshot's `roundId` is that one. This gives "sent at once", no double sends, and a fresh buzzer in the next round (new id) with nothing to reset. A press the server never ruled on (offline, call failed) is taken back so the person can try again; a refusal (`round.unknownPlayer`, `round.windowClosed`) is not.
+> - **An error is shown only in the round it happened in, and only until the team is in the queue** (then the buzz evidently counted). So a late "Too late: the buzzers have locked" stays while the person is out of the queue, and a lost-connection error disappears once the snapshot shows the team queued. "Sent" shows only while nothing has refused the press.
+> - The queue and the buzzer's team colour use the teams store (`activate()` loads it); until it has loaded the buzzer shows the pack's fallback colour and the rows their fallback visual.
+> - The page's `<h1>` "Buzz" is visually hidden (the buzzer is the biggest thing on the screen; the header already names the event). The sublabel wording ("Sent", "Number 2") and the notice sentences are plain app text; only the main label is the pack's copy.
+> - A player moved mid-round is not specially handled (D13, as F4 said).
+> - **Checked:** lint, build, tests (838). **Not checked:** the brief's two-phone check against the real backend, and any look at 360 px or on a phone (no browser). In particular the arcade font's fit for "Number 2" and "Sent" inside the buzzer, and the 13-row queue's scroll, are the developer's visual check on `/play` and `/dev/theme`.
+>
+> **Later steps must know**
+> - **F8:** `TeamQueue` and `buildQueueRows` are reusable for the host's queue (take the looks from the teams store the same way); the host view needs a way to mark the answering row, which `status === 'current'` already does in words and bold.
+> - `isUndeliveredRoundError` is the rule for "may the host press that command again".
 
 **Model:** Sonnet 5.5. **Read also:** PlanMVP §9.3 "Colour clash", D9, D13.
 
@@ -957,3 +977,8 @@ End-to-end tests are a later addition (PlanMVP §11). Each step appends the scen
 | F4 | Promote a player while their phone is connected: their screen moves to the host screen and receives the admin snapshot without signing in again | `TeamsChanged` → `/me` → role change → restart, across two devices and the real hub groups |
 | F4 | Lock a phone for a minute (or airplane mode for two), unlock: the round is current within a second or two | Throttled timers, frozen pages and dead sockets only happen on a real device |
 | F4 | After load, sign-in and sign-out in development (StrictMode), the network panel shows at most one open WebSocket to `/hubs/game` | Real WebSockets; the tests use a stub hub |
+| F5 | Two contexts (two teams) buzz within a few milliseconds: both phones show the same order and each its own place | Real cookies, a real hub and real arrival order; the tests drive a fake connection |
+| F5 | `/play` at 360 px with 13 queued teams and the longest names: the buzzer stays large, the queue scrolls under it, no horizontal scroll; the arcade labels ("Sent", "Number 2") fit inside the buzzer | Layout and Press Start 2P glyph widths only exist in a real engine |
+| F5 | One tap on the buzzer sends one buzz (also a fast double tap), and the button reads "Sent" before the next snapshot | `pointerdown` and touch only behave for real on a touch screen |
+| F5 | With `prefers-reduced-motion` the ready and your-team-up buzzer don't pulse or blink | Media-query emulation needs a real browser |
+| F5 | Cut the network while the buzzer is ready, press (nothing is sent, notice shows), restore: the buzzer is pressable again without a reload | Real socket loss and recovery |
