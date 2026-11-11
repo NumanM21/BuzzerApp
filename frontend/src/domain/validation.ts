@@ -1,4 +1,9 @@
-import { PERSON_NAME_MAX_LENGTH, PERSON_NAME_MIN_LENGTH } from './names';
+import {
+  PERSON_NAME_MAX_LENGTH,
+  PERSON_NAME_MIN_LENGTH,
+  TEAM_NAME_MAX_LENGTH,
+  TEAM_NAME_MIN_LENGTH,
+} from './names';
 
 // Mirrors of the server's input rules, so most mistakes never leave the phone. The server stays the authority and
 // may still refuse what passes here. Each function returns the message for the person, or `undefined` when fine.
@@ -63,4 +68,12 @@ export function validateJoinForm(mode: JoinMode, values: JoinFormValues): JoinFi
     }
   }
   return errors;
+}
+
+/** Team names are measured after trimming, like person names, with their own limits. */
+export function validateTeamName(name: string): string | undefined {
+  const length = name.trim().length;
+  return length < TEAM_NAME_MIN_LENGTH || length > TEAM_NAME_MAX_LENGTH
+    ? `Use ${TEAM_NAME_MIN_LENGTH} to ${TEAM_NAME_MAX_LENGTH} characters`
+    : undefined;
 }

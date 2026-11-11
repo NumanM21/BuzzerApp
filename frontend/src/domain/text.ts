@@ -18,3 +18,14 @@ export function describeRateLimit(seconds: number | undefined): string {
     ? 'Too many attempts. Try again in a moment'
     : `Too many attempts. Try again in ${formatCount(seconds, 'second')}`;
 }
+
+/**
+ * A team's 409 on create says "Another team already uses that colour." for a colour clash and "A team with that name
+ * already exists." for a name clash, and only the sentence tells them apart (see `isRealNameTakenMessage`).
+ */
+export function isColourTakenMessage(detail: string): boolean {
+  return /colou?r/i.test(detail);
+}
+
+/** Said in the dialogs that change names or teams: the live round keeps the roster it started with (D13). */
+export const ROUND_RUNNING_NOTE = 'A round is running. This change takes effect from the next round.';

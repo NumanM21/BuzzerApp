@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { describeRateLimit, formatCount, isRealNameTakenMessage } from './text';
+import { describeRateLimit, formatCount, isColourTakenMessage, isRealNameTakenMessage } from './text';
 
 describe('formatCount', () => {
   it.each([
@@ -34,5 +34,15 @@ describe('describeRateLimit', () => {
     [undefined, 'Too many attempts. Try again in a moment'],
   ])('%s seconds', (seconds, expected) => {
     expect(describeRateLimit(seconds)).toBe(expected);
+  });
+});
+
+describe('isColourTakenMessage', () => {
+  it.each([
+    ['Another team already uses that colour.', true],
+    ['Another team already uses that color.', true],
+    ['A team with that name already exists.', false],
+  ])('%s -> %s', (detail, expected) => {
+    expect(isColourTakenMessage(detail)).toBe(expected);
   });
 });

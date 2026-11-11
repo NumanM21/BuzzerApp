@@ -21,3 +21,8 @@ export interface RoundView {
   phase: RoundPhase;
   teamQueue: readonly TeamQueueEntry[];
 }
+
+/** True while a question is in play (anything but `idle`); no snapshot yet counts as not running. */
+export function isRoundRunning(round: { phase: RoundPhase } | undefined): boolean {
+  return round !== undefined && round.phase !== 'idle';
+}
