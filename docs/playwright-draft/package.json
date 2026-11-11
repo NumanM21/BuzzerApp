@@ -1,0 +1,9 @@
+{
+  "name": "buzzer-playwright-draft",
+  "private": true,
+  "description": "Draft of the F9 live walkthrough. Not part of the build, the tests or CI. See README.md.",
+  "type": "module",
+  "dependencies": {
+    "playwright-core": "^1.65.0"
+  }
+}

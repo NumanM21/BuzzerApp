@@ -1052,13 +1052,7 @@ A repeated buzz from the same player returns `success: true, changed: false`.
 
 After those: a player promoted while connected (F4), changes reaching a second device (F6, F7), the error screen when a file does not arrive (H1), a session that ends while connected (M2), finalize and download (F8).
 
-**A starting point exists, outside the repo.** For its live walkthrough F9 wrote a throwaway Playwright script (`playwright-core` driving the installed Edge, six browser contexts at 360 px, the published API in Production mode against its own PostgreSQL container). It makes 106 checks and covers items 1, 2, 4 and most of 3 and 5 above, plus scores, team admin, promotion, the guards, finalize and export, H1 and M2. It passed in four set-ups (arcade pack with six and with eight teams, `default` pack with three, and through the Vite dev server). It was not committed: it is a script, not a test suite (one long run, fixed waits in places, no fixtures). What it taught, for whoever writes the real thing:
-
-- The ready buzzer pulses, and Playwright waits for an element to stop moving before it taps. Use `tap({ force: true })`, or emulate reduced motion.
-- A phone-emulated page widens itself to fit content that is too wide, so compare `scrollWidth` with the configured viewport width, not with `clientWidth`. When a page is too wide, clicks also land in the wrong place ("… intercepts pointer events").
-- Once a team is in the queue its teammates' buzzers stop being pressable, so a "not counted" buzz needs both presses in one `Promise.all`.
-- Role queries need `exact: true` ("Extra 1" matches "Extra 10"), and Fluent's message bar is `role="group"`, not `alert`.
-- A new join code is a new, empty event, so every run can start clean against one database.
+**A starting point exists: `docs/playwright-draft/`.** For its live walkthrough F9 wrote a Playwright script (`playwright-core` driving the installed Edge, six browser contexts at 360 px, the published API in Production mode against its own PostgreSQL container). It makes 106 checks and covers items 1, 2, 4 and most of 3 and 5 above, plus scores, team admin, promotion, the guards, finalize and export, H1 and M2. It passed in four set-ups (arcade pack with six and with eight teams, `default` pack with three, and through the Vite dev server). The developer chose to keep it as a draft (11 Nov 2026). It is a script, not a test suite: nothing runs it (not `npm test`, not lint, not CI). Its `README.md` says how it was run, what to change to make it a real suite, and what it taught about driving this app with Playwright.
 
 | Step | Scenario | Why it needs a real browser |
 |---|---|---|
