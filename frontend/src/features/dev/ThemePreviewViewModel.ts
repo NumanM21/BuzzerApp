@@ -1,6 +1,8 @@
 import { makeAutoObservable } from 'mobx';
 import { buzzerVisualStates, type BuzzerVisualState } from '@/domain/buzzer';
 import { PERSON_NAME_MAX_LENGTH, TEAM_NAME_MAX_LENGTH } from '@/domain/names';
+import { buildQueueRows, type QueueRow } from '@/domain/queueRows';
+import type { TeamQueueEntry } from '@/domain/round';
 import type { PackKeys, ThemeCatalog } from '@/domain/themeCatalog';
 import { Loadable } from '@/mvvm/Loadable';
 
@@ -135,6 +137,27 @@ export class ThemePreviewViewModel {
         members,
       };
     });
+  }
+
+  /**
+   * The sample teams as a queue, in the opposite order to the team list (a queue's order is the buzz order, not the
+   * teams' order): the first third have answered wrong, the next is answering, the rest wait. The viewer's team is
+   * the third in line, and with two or more teams the last one is missing from the "teams list", so its row shows
+   * the pack's fallback visual.
+   */
+  get sampleQueue(): QueueRow[] {
+    const teams = [...this.sampleTeams].reverse();
+    const passedCount = Math.floor(teams.length / 3);
+    const queue: TeamQueueEntry[] = teams.map((team, index) => ({
+      position: index + 1,
+      teamId: team.id,
+      teamName: team.name,
+      buzzedByDisplayName: `Player ${team.id}`,
+      status: index < passedCount ? 'passed' : index === passedCount ? 'current' : 'waiting',
+    }));
+    const known = teams.length > 1 ? teams.slice(0, -1) : teams;
+    const looks = new Map(known.map((team) => [team.id, { colorKey: team.colorKey, iconKey: team.iconKey }]));
+    return buildQueueRows(queue, teams[Math.min(2, teams.length - 1)]?.id, looks);
   }
 
   /** One card per team colour in the pack, spares included, then one for a key the pack doesn't know. */

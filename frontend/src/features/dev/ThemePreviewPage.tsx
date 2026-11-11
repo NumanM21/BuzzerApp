@@ -37,6 +37,7 @@ import type { ReactNode } from 'react';
 import { useViewModel } from '@/app/useViewModel';
 import { Buzzer } from '@/components/Buzzer';
 import { TeamCard } from '@/components/TeamCard';
+import { TeamQueue } from '@/components/TeamQueue';
 import { appTokens } from '@/theme/appTokens';
 import { buzzerCopyKeys } from '@/theme/defaultCopy';
 import { ThemeRoot } from '@/theme/ThemeRoot';
@@ -298,6 +299,10 @@ const PackPreview = observer(function PackPreview({ vm }: { vm: ThemePreviewView
 
       <PreviewSection title={`Teams (${vm.teamCount})`}>
         <TeamGrid teams={vm.sampleTeams} />
+      </PreviewSection>
+
+      <PreviewSection title="Team queue">
+        <TeamQueue rows={vm.sampleQueue} />
       </PreviewSection>
 
       <PreviewSection title="Buzzer">
