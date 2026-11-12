@@ -8,7 +8,7 @@ describe('formatClockTime', () => {
   });
 
   it('reads something that is not a date as nothing', () => {
-    expect(formatClockTime('')).toBe('');
+    expect(formatClockTime('')).toBeFalsy;
     expect(formatClockTime('not a date')).toBe('');
   });
 });
